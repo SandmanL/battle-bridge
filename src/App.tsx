@@ -1,15 +1,9 @@
 import { useState } from 'react';
-
-const SUITS = ['♠', '♥', '♦', '♣'];
-const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
-const POSITIONS = ['South', 'West', 'North', 'East'];
-const BID_LEVELS = [1, 2, 3, 4, 5, 6, 7];
-const BID_STRAINS = ['♣', '♦', '♥', '♠', 'NT'];
-
-interface Card {
-  suit: string;
-  rank: string;
-}
+import {
+  BID_LEVELS, BID_STRAINS,
+  POSITIONS, RANKS, SUITS
+} from './types';
+import type { Card, GameState, Position } from './types';
 
 const createDeck = (): Card[] => {
   const deck = [];
@@ -45,145 +39,170 @@ const sortCards = (a: Card, b: Card) => {
 };
 
 export default function BridgeGame() {
-  const [hands, setHands] = useState(shuffleAndDeal());
-  const [phase, setPhase] = useState('bidding');
-  const [dealer, setDealer] = useState(0);
-  const [currentPlayer, setCurrentPlayer] = useState(0);
-  const [bids, setBids] = useState([]);
-  const [contract, setContract] = useState(null);
-  const [declarer, setDeclarer] = useState(null);
-  const [dummy, setDummy] = useState(null);
-  const [currentTrick, setCurrentTrick] = useState([]);
-  const [tricksWon, setTricksWon] = useState({ 'South-North': 0, 'East-West': 0 });
-  const [leadSuit, setLeadSuit] = useState(null);
-  const [trickWinner, setTrickWinner] = useState(null);
-  const [vulnerability, setVulnerability] = useState({ 'South-North': false, 'East-West': false });
-  const [dummyRevealed, setDummyRevealed] = useState(false);
-  const [lastTrick, setLastTrick] = useState(null);
-  const [score, setScore] = useState({ 'South-North': 0, 'East-West': 0 });
-
-  const getNextPlayer = (player) => (player + 1) % 4;
-
-  const makeBid = (level, strain) => {
-    const bid = { player: POSITIONS[currentPlayer], level, strain };
-    const newBids = [...bids, bid];
-    setBids(newBids);
-    setCurrentPlayer(getNextPlayer(currentPlayer));
-
-    checkBiddingEnd(newBids);
+  const newGameState: GameState = {
+    phase: 'bidding',
+    bids: [],
+    currentBid: {
+      value: null,
+      position: null,
+      doubled: false,
+      redoubled: false,
+    },
+    dealer: 'South',
+    activePlayer: 'South',
+    hands: shuffleAndDeal(),
+    currentTrick: [],
+    lastTrick: null,
+    tricksWon: {
+      northSouth: 0,
+      eastWest: 0,
+    },
+    vulnerability: {
+      northSouth: false,
+      eastWest: false,
+    },
+    dummy: {
+      position: null,
+      visible: false,
+    },
+    score: {
+      northSouth: 0,
+      eastWest: 0,
+    },
   };
 
-  const pass = () => {
-    const bid = { player: POSITIONS[currentPlayer], action: 'Pass' };
-    const newBids = [...bids, bid];
-    setBids(newBids);
-    setCurrentPlayer(getNextPlayer(currentPlayer));
+  const [gameState, setGameState] = useState(newGameState as GameState);
+  const [declarer, setDeclarer] = useState(null);
 
+  const getNextPlayer = (position: Position) => POSITIONS[(POSITIONS.indexOf(position) + 1) % 4];
+
+  const BidOrPass = (bidValue: string) => { // used for passing or making a new bid
+    const newBid = {
+      value: bidValue,
+      position: gameState.activePlayer,
+    };
+    const newBids = [...gameState.bids, newBid];
+    let winningBid = gameState.currentBid;
+    if (bidValue !== 'Pass') {
+      winningBid = {
+        ...newBid,
+        doubled: false,
+        redoubled: false,
+      };
+      setGameState({
+        ...gameState,
+        bids: newBids,
+        currentBid: winningBid,
+        activePlayer: getNextPlayer(gameState.activePlayer),
+      });
+      return;
+    }
+    setGameState({
+      ...gameState,
+      bids: newBids,
+      currentBid: winningBid,
+      activePlayer: getNextPlayer(gameState.activePlayer),
+    });
     checkBiddingEnd(newBids);
+
   };
 
   const double = () => {
-    const bid = { player: POSITIONS[currentPlayer], action: 'Double' };
-    const newBids = [...bids, bid];
-    setBids(newBids);
-    setCurrentPlayer(getNextPlayer(currentPlayer));
-
-    checkBiddingEnd(newBids);
+    setGameState({
+      ...gameState,
+      bids: [...gameState.bids, {value: 'Double', position: gameState.activePlayer}],
+      currentBid: {...gameState.currentBid, doubled: true},
+      activePlayer: getNextPlayer(gameState.activePlayer),
+    });
   };
 
   const redouble = () => {
-    const bid = { player: POSITIONS[currentPlayer], action: 'Redouble' };
-    const newBids = [...bids, bid];
-    setBids(newBids);
-    setCurrentPlayer(getNextPlayer(currentPlayer));
-
-    checkBiddingEnd(newBids);
+    setGameState({
+      ...gameState,
+      bids: [...gameState.bids, {value: 'Redouble', position: gameState.activePlayer}],
+      currentBid: {...gameState.currentBid, redoubled: true},
+      activePlayer: getNextPlayer(gameState.activePlayer),
+    });
   };
 
-  const checkBiddingEnd = (allBids) => {
-    if (allBids.length < 4) return;
+  const checkBiddingEnd = (allBids: {value: string, position: Position}[]) => {
+    if (allBids.length < 4) return; // not all players have bid.
 
-    const lastFour = allBids.slice(-3);
-    const allPass = lastFour.every(b => b.action === 'Pass');
+    const contractBid = gameState.currentBid;
 
-    if (allPass) {
-      const contractBids = allBids.filter(b => b.level && b.strain);
-
-      if (contractBids.length === 0) {
-        newDeal();
-        return;
-      }
-
-      const finalContract = contractBids[contractBids.length - 1];
-
-      let doubled = false;
-      let redoubled = false;
-      for (let i = allBids.length - 4; i < allBids.length - 3; i++) {
-        if (allBids[i] && allBids[i].action === 'Double') doubled = true;
-        if (allBids[i] && allBids[i].action === 'Redouble') redoubled = true;
-      }
-
-      const declarerPos = POSITIONS.indexOf(finalContract.player);
-      const partnerPos = (declarerPos + 2) % 4;
-
-      let firstBidder = declarerPos;
-      for (let i = 0; i < allBids.length; i++) {
-        const bid = allBids[i];
-        if (bid.level && bid.strain === finalContract.strain) {
-          const bidderPos = POSITIONS.indexOf(bid.player);
-          if (bidderPos === declarerPos || bidderPos === partnerPos) {
-            firstBidder = bidderPos;
-            break;
-          }
-        }
-      }
-
-      setContract({ ...finalContract, doubled, redoubled });
-      setDeclarer(firstBidder);
-      setDummy((firstBidder + 2) % 4);
-      setCurrentPlayer(getNextPlayer(firstBidder));
-      setPhase('play');
+    if (!contractBid.value) { // all players have passed, current bid is null. reshuffle and start new game
+      const newHands = shuffleAndDeal();
+      setGameState({...newGameState, hands: newHands});
+      return;
     }
+
+    if(!contractBid.position || !contractBid.value) {
+      console.log('null bid passed through');
+    }
+
+    const winnerPosition = contractBid.position || 'South';
+
+    setGameState({
+      ...gameState,
+      phase: 'play',
+      activePlayer: getNextPlayer(winnerPosition),
+      dummy: {
+        position: POSITIONS[(POSITIONS.indexOf(winnerPosition) + 2) % 4],
+        visible: false,
+      }
+    });
+
   };
 
-  const playCard = (card: Card) => {
-    const currentHand: Card[] = hands[POSITIONS[currentPlayer]];
-    const cardIndex = currentHand.findIndex(c => c.suit === card.suit && c.rank === card.rank);
+  const playCard = (playedCard: Card) => {
+    const currentHand = gameState.hands[gameState.activePlayer];
+    const cardIndex = currentHand.findIndex(c => c.suit === playedCard.suit && c.rank === playedCard.rank);
 
-    if (cardIndex === -1) return;
+    if (cardIndex === -1) return; //card not found on player's hand
 
-    if (currentTrick.length > 0 && leadSuit) {
+    const thisTrick = gameState.currentTrick;
+
+    if (thisTrick.length > 0) {
+      const leadSuit = thisTrick[0].suit
       const hasLeadSuit = currentHand.some(c => c.suit === leadSuit);
-      if (hasLeadSuit && card.suit !== leadSuit) {
+      if (hasLeadSuit && playedCard.suit !== leadSuit) { //player has current suit but chose nonlead card
         return;
       }
     }
 
-    const newHands = { ...hands };
-    newHands[POSITIONS[currentPlayer]] = currentHand.filter((_, i) => i !== cardIndex);
-    setHands(newHands);
+    const updatedTrick = [...thisTrick, playedCard]; //add card to current trick
+    const updatedCurrentHand = currentHand.filter((_, i) => i !== cardIndex); // remove card from player's hand
+    const updatedHands = { ...gameState.hands };
+    updatedHands[gameState.activePlayer] = updatedCurrentHand; //update hands
 
-    const newTrick = [...currentTrick, { player: currentPlayer, card }];
-    setCurrentTrick(newTrick);
+    setGameState({
+      ...gameState,
+      currentTrick: updatedTrick,
+      hands: updatedHands,
+    });
 
-    if (currentTrick.length === 0) {
-      setLeadSuit(card.suit);
-      setDummyRevealed(true);
+    if (updatedTrick.length === 4) {
+      setTimeout(() => finishTrick(updatedTrick), 1000);
+      return;
     }
 
-    if (newTrick.length === 4) {
-      setTimeout(() => finishTrick(newTrick), 1500);
-    } else {
-      setCurrentPlayer(getNextPlayer(currentPlayer));
-    }
+    setGameState({
+      ...gameState,
+      activePlayer: getNextPlayer(gameState.activePlayer),
+      dummy: {
+        ...gameState.dummy,
+        visible: true,
+      },
+    });
+
   };
 
-  const finishTrick = (trick) => {
+  const finishTrick = (finishedTrick) => {
     const trump = contract.strain === 'NT' ? null : contract.strain;
-    let winner = trick[0];
+    let winner = finishedTrick[0];
 
-    for (let i = 1; i < trick.length; i++) {
-      const current = trick[i];
+    for (let i = 1; i < finishedTrick.length; i++) {
+      const current = finishedTrick[i];
 
       if (trump && current.card.suit === trump && winner.card.suit !== trump) {
         winner = current;
@@ -197,13 +216,13 @@ export default function BridgeGame() {
     }
 
     setTrickWinner(winner.player);
-    setLastTrick({ trick, winner: winner.player });
+    setLastTrick({ finishedTrick, winner: winner.player });
 
     const winnerTeam = winner.player === 0 || winner.player === 2 ? 'South-North' : 'East-West';
     setTricksWon(prev => ({ ...prev, [winnerTeam]: prev[winnerTeam] + 1 }));
 
     setTimeout(() => {
-      setCurrentTrick([]);
+      setGameState({...gameState, currentTrick: []});
       setLeadSuit(null);
       setTrickWinner(null);
       setCurrentPlayer(winner.player);
@@ -312,7 +331,7 @@ export default function BridgeGame() {
     setContract(null);
     setDeclarer(null);
     setDummy(null);
-    setCurrentTrick([]);
+    setGameState({...gameState, currentTrick: []});
     setTricksWon({ 'South-North': 0, 'East-West': 0 });
     setLeadSuit(null);
     setTrickWinner(null);
@@ -534,7 +553,7 @@ export default function BridgeGame() {
                         {BID_STRAINS.map(strain => (
                           <button
                             key={`${level}${strain}`}
-                            onClick={() => makeBid(level, strain)}
+                            onClick={() => BidOrPass(level, strain)}
                             disabled={!isValidBid(level, strain)}
                             className={`w-full py-2 px-1 text-sm rounded ${
                               isValidBid(level, strain)
