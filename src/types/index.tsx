@@ -1,23 +1,24 @@
 
-export const SUITS = ['♠', '♥', '♦', '♣'];
+export const SUITS: Suit[] = ['♠', '♥', '♣', '♦'];
 export const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 export const POSITIONS: Position[] = ['South', 'West', 'North', 'East'];
 export const BID_LEVELS = [1, 2, 3, 4, 5, 6, 7];
 export const BID_STRAINS = ['♣', '♦', '♥', '♠', 'NT'];
 
 export interface Card {
-  suit: string;
+  suit: Suit;
   rank: string;
 }
 
 export type Position = 'South'| 'West'| 'North'| 'East';
+export type Suit = '♠'|'♥'|'♦'|'♣';
 
 export interface GameState {
-  phase: 'bidding' | 'play';
+  phase: 'bidding' | 'play' | 'cleanup';
   bids: {value: string, position: Position}[];
   currentBid: {
-    value: string | null;
-    position: Position | null;
+    value: string;
+    position: Position;
     doubled: boolean;
     redoubled: boolean;
   };
@@ -30,7 +31,7 @@ export interface GameState {
     East: Card[];
   };
   dummy: {
-    position: Position | null;
+    position: Position | 'None';
     visible: boolean;
   };
   currentTrick: Card[];

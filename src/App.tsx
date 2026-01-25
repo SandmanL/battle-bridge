@@ -43,8 +43,8 @@ export default function BridgeGame() {
     phase: 'bidding',
     bids: [],
     currentBid: {
-      value: null,
-      position: null,
+      value: 'None',
+      position: 'South',
       doubled: false,
       redoubled: false,
     },
@@ -57,13 +57,13 @@ export default function BridgeGame() {
       northSouth: 0,
       eastWest: 0,
     },
+    dummy: {
+      position: 'None',
+      visible: false,
+    },
     vulnerability: {
       northSouth: false,
       eastWest: false,
-    },
-    dummy: {
-      position: null,
-      visible: false,
     },
     score: {
       northSouth: 0,
@@ -72,9 +72,28 @@ export default function BridgeGame() {
   };
 
   const [gameState, setGameState] = useState(newGameState as GameState);
-  const [declarer, setDeclarer] = useState(null);
 
   const getNextPlayer = (position: Position) => POSITIONS[(POSITIONS.indexOf(position) + 1) % 4];
+
+  const newGame = () => {
+    const newHands = shuffleAndDeal();
+    setGameState({...newGameState, hands: newHands});
+  };
+
+  const newHand = () => {
+    const gameScore = gameState.score;
+    const teamVulnerability = gameState.vulnerability;
+    const newDealer = getNextPlayer(gameState.dealer);
+    const newHands = shuffleAndDeal();
+    setGameState({
+      ...newGameState,
+      dealer: newDealer,
+      activePlayer: newDealer,
+      hands: newHands,
+      score: gameScore,
+      vulnerability: teamVulnerability,
+    });
+  }
 
   const BidOrPass = (bidValue: string) => { // used for passing or making a new bid
     const newBid = {
@@ -130,17 +149,12 @@ export default function BridgeGame() {
 
     const contractBid = gameState.currentBid;
 
-    if (!contractBid.value) { // all players have passed, current bid is null. reshuffle and start new game
-      const newHands = shuffleAndDeal();
-      setGameState({...newGameState, hands: newHands});
+    if (!contractBid.value) { // all players have passed, current bid is null. reshuffle and start new hand
+      newHand();
       return;
     }
 
-    if(!contractBid.position || !contractBid.value) {
-      console.log('null bid passed through');
-    }
-
-    const winnerPosition = contractBid.position || 'South';
+    const winnerPosition = contractBid.position;
 
     setGameState({
       ...gameState,
@@ -197,194 +211,183 @@ export default function BridgeGame() {
 
   };
 
-  const finishTrick = (finishedTrick) => {
-    const trump = contract.strain === 'NT' ? null : contract.strain;
-    let winner = finishedTrick[0];
+  const finishTrick = (finishedTrick: Card[]) => {
+    const trump = gameState.currentBid.value.slice(-1);
+    const leadPosition = getNextPlayer(gameState.activePlayer);
+    const leadSuit = finishedTrick[0].suit;
+    let winnerIndex = 0;
+    let winner = finishedTrick[winnerIndex];
 
     for (let i = 1; i < finishedTrick.length; i++) {
       const current = finishedTrick[i];
 
-      if (trump && current.card.suit === trump && winner.card.suit !== trump) {
+      if (current.suit === trump && winner.suit !== trump) {
         winner = current;
-      } else if (current.card.suit === winner.card.suit) {
-        if (RANKS.indexOf(current.card.rank) > RANKS.indexOf(winner.card.rank)) {
+        winnerIndex = i;
+      } else if (current.suit === winner.suit) {
+        if (RANKS.indexOf(current.rank) > RANKS.indexOf(winner.rank)) {
           winner = current;
+          winnerIndex = i;
         }
-      } else if (winner.card.suit !== trump && current.card.suit === leadSuit && winner.card.suit !== leadSuit) {
+      } else if (winner.suit !== trump && current.suit === leadSuit && winner.suit !== leadSuit) {
         winner = current;
+        winnerIndex = i;
       }
     }
+    const winningPositionIndex = (POSITIONS.indexOf(leadPosition) + winnerIndex) % 4;
+    const winningPosition = POSITIONS[winningPositionIndex];
+    const currentTricksWon = gameState.tricksWon;
 
-    setTrickWinner(winner.player);
-    setLastTrick({ finishedTrick, winner: winner.player });
-
-    const winnerTeam = winner.player === 0 || winner.player === 2 ? 'South-North' : 'East-West';
-    setTricksWon(prev => ({ ...prev, [winnerTeam]: prev[winnerTeam] + 1 }));
-
-    setTimeout(() => {
-      setGameState({...gameState, currentTrick: []});
-      setLeadSuit(null);
-      setTrickWinner(null);
-      setCurrentPlayer(winner.player);
-
-      const allHandsEmpty = Object.values(hands).every(h => h.length === 0);
-      if (allHandsEmpty) {
-        calculateScore();
-        setPhase('gameOver');
-        setTimeout(() => {
-          newDeal();
-        }, 3000);
+    setGameState({
+      ...gameState,
+      currentTrick: [],
+      activePlayer: winningPosition,
+      lastTrick: {
+        trick: finishedTrick,
+        winner: winningPosition,
+      },
+      tricksWon: {
+        northSouth: currentTricksWon.northSouth + (winningPositionIndex % 2 ? 1 : 0),
+        eastWest: currentTricksWon.eastWest + (winningPositionIndex % 2 ? 0 : 1),
       }
-    }, 2000);
-  };
+    });
 
-  const calculateScore = () => {
-    const declarerTeam = declarer === 0 || declarer === 2 ? 'South-North' : 'East-West';
-    const defenderTeam = declarerTeam === 'South-North' ? 'East-West' : 'South-North';
-    const tricksNeeded = 6 + contract.level;
-    const tricksMade = tricksWon[declarerTeam];
-    const overtricks = tricksMade - tricksNeeded;
-    const undertricks = tricksNeeded - tricksMade;
-    const vulnerable = vulnerability[declarerTeam];
-
-    let points = 0;
-
-    if (tricksMade >= tricksNeeded) {
-      const basePoints = {
-        '♣': 20,
-        '♦': 20,
-        '♥': 30,
-        '♠': 30,
-        'NT': 30
-      };
-
-      let contractPoints = basePoints[contract.strain] * contract.level;
-      if (contract.strain === 'NT') contractPoints += 10;
-
-      if (contract.doubled) contractPoints *= 2;
-      if (contract.redoubled) contractPoints *= 4;
-
-      let bonus = 0;
-      if (contractPoints >= 100) {
-        bonus = vulnerable ? 500 : 300;
-      } else {
-        bonus = 50;
-      }
-
-      if (contract.level === 6) {
-        bonus += vulnerable ? 750 : 500;
-      } else if (contract.level === 7) {
-        bonus += vulnerable ? 1500 : 1000;
-      }
-
-      if (contract.doubled) bonus += 50;
-      if (contract.redoubled) bonus += 100;
-
-      let overtrickPoints = 0;
-      if (overtricks > 0) {
-        if (contract.doubled) {
-          overtrickPoints = overtricks * (vulnerable ? 200 : 100);
-        } else if (contract.redoubled) {
-          overtrickPoints = overtricks * (vulnerable ? 400 : 200);
-        } else {
-          overtrickPoints = overtricks * basePoints[contract.strain];
-        }
-      }
-
-      points = contractPoints + bonus + overtrickPoints;
-      setScore(prev => ({ ...prev, [declarerTeam]: prev[declarerTeam] + points }));
-    } else {
-      if (contract.doubled) {
-        for (let i = 0; i < undertricks; i++) {
-          if (i === 0) {
-            points += vulnerable ? 200 : 100;
-          } else if (i <= 2) {
-            points += vulnerable ? 300 : 200;
-          } else {
-            points += 300;
-          }
-        }
-      } else if (contract.redoubled) {
-        for (let i = 0; i < undertricks; i++) {
-          if (i === 0) {
-            points += vulnerable ? 400 : 200;
-          } else if (i <= 2) {
-            points += vulnerable ? 600 : 400;
-          } else {
-            points += 600;
-          }
-        }
-      } else {
-        points = undertricks * (vulnerable ? 100 : 50);
-      }
-
-      setScore(prev => ({ ...prev, [defenderTeam]: prev[defenderTeam] + points }));
+    //Check if end of hand
+    const allHandsEmpty = gameState.hands.South.length === 0;
+    if (allHandsEmpty) {
+      const currentGameState = gameState;
+      setGameState({
+        ...currentGameState,
+        phase: 'cleanup',
+      })
+      //calculateScore();
+      setTimeout(() => {
+        newHand();
+      }, 5000);
     }
   };
 
-  const newDeal = () => {
-    setHands(shuffleAndDeal());
-    setPhase('bidding');
-    setDealer((dealer + 1) % 4);
-    setCurrentPlayer((dealer + 1) % 4);
-    setBids([]);
-    setContract(null);
-    setDeclarer(null);
-    setDummy(null);
-    setGameState({...gameState, currentTrick: []});
-    setTricksWon({ 'South-North': 0, 'East-West': 0 });
-    setLeadSuit(null);
-    setTrickWinner(null);
-    setDummyRevealed(false);
-    setLastTrick(null);
-  };
+  // const calculateScore = () => {
+  //   const declarerTeam = declarer === 0 || declarer === 2 ? 'South-North' : 'East-West';
+  //   const defenderTeam = declarerTeam === 'South-North' ? 'East-West' : 'South-North';
+  //   const tricksNeeded = 6 + contract.level;
+  //   const tricksMade = tricksWon[declarerTeam];
+  //   const overtricks = tricksMade - tricksNeeded;
+  //   const undertricks = tricksNeeded - tricksMade;
+  //   const vulnerable = vulnerability[declarerTeam];
 
-  const newGame = () => {
-    newDeal();
-    setScore({ 'South-North': 0, 'East-West': 0 });
-    setDealer(0);
-    setCurrentPlayer(0);
-  };
+  //   let points = 0;
+
+  //   if (tricksMade >= tricksNeeded) {
+  //     const basePoints = {
+  //       '♣': 20,
+  //       '♦': 20,
+  //       '♥': 30,
+  //       '♠': 30,
+  //       'NT': 30
+  //     };
+
+  //     let contractPoints = basePoints[contract.strain] * contract.level;
+  //     if (contract.strain === 'NT') contractPoints += 10;
+
+  //     if (contract.doubled) contractPoints *= 2;
+  //     if (contract.redoubled) contractPoints *= 4;
+
+  //     let bonus = 0;
+  //     if (contractPoints >= 100) {
+  //       bonus = vulnerable ? 500 : 300;
+  //     } else {
+  //       bonus = 50;
+  //     }
+
+  //     if (contract.level === 6) {
+  //       bonus += vulnerable ? 750 : 500;
+  //     } else if (contract.level === 7) {
+  //       bonus += vulnerable ? 1500 : 1000;
+  //     }
+
+  //     if (contract.doubled) bonus += 50;
+  //     if (contract.redoubled) bonus += 100;
+
+  //     let overtrickPoints = 0;
+  //     if (overtricks > 0) {
+  //       if (contract.doubled) {
+  //         overtrickPoints = overtricks * (vulnerable ? 200 : 100);
+  //       } else if (contract.redoubled) {
+  //         overtrickPoints = overtricks * (vulnerable ? 400 : 200);
+  //       } else {
+  //         overtrickPoints = overtricks * basePoints[contract.strain];
+  //       }
+  //     }
+
+  //     points = contractPoints + bonus + overtrickPoints;
+  //     setScore(prev => ({ ...prev, [declarerTeam]: prev[declarerTeam] + points }));
+  //   } else {
+  //     if (contract.doubled) {
+  //       for (let i = 0; i < undertricks; i++) {
+  //         if (i === 0) {
+  //           points += vulnerable ? 200 : 100;
+  //         } else if (i <= 2) {
+  //           points += vulnerable ? 300 : 200;
+  //         } else {
+  //           points += 300;
+  //         }
+  //       }
+  //     } else if (contract.redoubled) {
+  //       for (let i = 0; i < undertricks; i++) {
+  //         if (i === 0) {
+  //           points += vulnerable ? 400 : 200;
+  //         } else if (i <= 2) {
+  //           points += vulnerable ? 600 : 400;
+  //         } else {
+  //           points += 600;
+  //         }
+  //       }
+  //     } else {
+  //       points = undertricks * (vulnerable ? 100 : 50);
+  //     }
+
+  //     setScore(prev => ({ ...prev, [defenderTeam]: prev[defenderTeam] + points }));
+  //   }
+  // };
 
   const canDouble = () => {
-    if (bids.length === 0) return false;
-    const lastBid = bids[bids.length - 1];
-    if (!lastBid.level) return false;
-    const lastBidderPos = POSITIONS.indexOf(lastBid.player);
-    const currentTeam = currentPlayer % 2;
-    const lastBidderTeam = lastBidderPos % 2;
-    return currentTeam !== lastBidderTeam && !bids.slice(-3).some(b => b.action === 'Double');
+    //cant double if alreaady doubled
+    if (gameState.currentBid.doubled) return false;
+    //only opposing team can double
+    const currentBidWinner = gameState.currentBid.position;
+    const bidWinningTeam = POSITIONS.indexOf(currentBidWinner) % 2;
+    const biddingTeam = POSITIONS.indexOf(gameState.activePlayer) % 2;
+    return biddingTeam !== bidWinningTeam;
   };
 
   const canRedouble = () => {
-    const lastDouble = bids.slice().reverse().find(b => b.action === 'Double');
-    if (!lastDouble) return false;
-    const doublePos = POSITIONS.indexOf(lastDouble.player);
-    const currentTeam = currentPlayer % 2;
-    const doubleTeam = doublePos % 2;
-    return currentTeam !== doubleTeam;
+    //cant redouble if alreaady redoubled or not dobuled to begin with
+    if (gameState.currentBid.redoubled || !gameState.currentBid.doubled) return false;
+    // only currenet bid winning team can redouble
+    const currentBidWinner = gameState.currentBid.position;
+    const bidWinningTeam = POSITIONS.indexOf(currentBidWinner) % 2;
+    const biddingTeam = POSITIONS.indexOf(gameState.activePlayer) % 2;
+    return biddingTeam === bidWinningTeam;
   };
 
-  const getLastContract = () => {
-    const contractBids = bids.filter(b => b.level && b.strain);
-    return contractBids.length > 0 ? contractBids[contractBids.length - 1] : null;
-  };
-
-  const isValidBid = (level, strain) => {
-    const lastContract = getLastContract();
-    if (!lastContract) return true;
-
-    const strainValue = { '♣': 0, '♦': 1, '♥': 2, '♠': 3, 'NT': 4 };
-    if (level > lastContract.level) return true;
-    if (level === lastContract.level && strainValue[strain] > strainValue[lastContract.strain]) return true;
+  const isValidBid = (level: number, strain: string) => {
+    // if no active bid, all bids are valid
+    if (gameState.currentBid.value === 'None') return true;
+    // if active bid, any higher level bid is valid
+    const currentBidLevel = parseInt(gameState.currentBid.value);
+    if (level > currentBidLevel) return true;
+    // if active bid, must have higher strain on same level bids
+    const currentBidStrain = gameState.currentBid.value.slice(1);
+    if (level === currentBidLevel && BID_STRAINS.indexOf(strain) > BID_STRAINS.indexOf(currentBidStrain)) return true;
     return false;
   };
 
-  const renderHand = (position: number, isVertical = false) => {
-    const hand = hands[POSITIONS[position]];
-    const isDummyPlayer = dummy === position;
-    const isCurrentPlayer = currentPlayer === position;
-    const shouldShowCards = (isDummyPlayer && dummyRevealed) || isCurrentPlayer;
+  const renderHand = (position: Position, isVertical = false) => {
+    const hand = gameState.hands[position];
+    const isDummyPlayer = gameState.dummy.position === position;
+    const isCurrentPlayer = gameState.activePlayer === position;
+    const shouldShowCards = (isDummyPlayer && gameState.dummy.visible) || isCurrentPlayer;
 
     if (!shouldShowCards) {
       return (
@@ -397,14 +400,14 @@ export default function BridgeGame() {
     }
 
     // Group by suit
-    const bySuit = { '♠': [], '♥': [], '♦': [], '♣': [] };
-    hand.forEach(card => bySuit[card.suit].push(card));
+    const bySuit: Card[][] = [[]]; // 2d array of cards, in Spade, heart, club, diamond order
+    hand.forEach(card => bySuit[SUITS.indexOf(card.suit)].push(card));
 
     if (isVertical) {
       // For vertical (West/East), show 2 suits per row
       const rows = [
-        [{ suit: '♠', cards: bySuit['♠'] }, { suit: '♥', cards: bySuit['♥'] }],
-        [{ suit: '♦', cards: bySuit['♦'] }, { suit: '♣', cards: bySuit['♣'] }]
+        [{ suit: '♠', cards: bySuit[SUITS.indexOf('♠')] }, { suit: '♥', cards: bySuit[SUITS.indexOf('♥')] }],
+        [{ suit: '♦', cards: bySuit[SUITS.indexOf('♦')] }, { suit: '♣', cards: bySuit[SUITS.indexOf('♣')] }]
       ];
 
       return (
@@ -445,8 +448,8 @@ export default function BridgeGame() {
 
     // Horizontal display - show 2 suits per row
     const rows = [
-      [{ suit: '♠', cards: bySuit['♠'] }, { suit: '♥', cards: bySuit['♥'] }],
-      [{ suit: '♦', cards: bySuit['♦'] }, { suit: '♣', cards: bySuit['♣'] }]
+      [{ suit: '♠', cards: bySuit[SUITS.indexOf('♠')] }, { suit: '♥', cards: bySuit[SUITS.indexOf('♥')] }],
+      [{ suit: '♦', cards: bySuit[SUITS.indexOf('♦')] }, { suit: '♣', cards: bySuit[SUITS.indexOf('♣')] }]
     ];
 
     return (
@@ -493,19 +496,19 @@ export default function BridgeGame() {
             <h1 className="text-2xl font-bold">Bridge</h1>
             <div className="flex items-center gap-4">
               <div className="text-sm">
-                <span className="font-semibold">Score:</span> NS: {score['South-North']} | EW: {score['East-West']}
+                <span className="font-semibold">Score:</span> NS: {gameState.score.northSouth} | EW: {gameState.score.eastWest}
               </div>
               <div className="text-sm">
-                <span className="font-semibold">Dealer:</span> {POSITIONS[dealer]} |
+                <span className="font-semibold">Dealer:</span> {gameState.dealer} |
                 <span className="font-semibold ml-2">Vuln:</span>
-                {vulnerability['South-North'] && ' NS'}
-                {vulnerability['East-West'] && ' EW'}
-                {!vulnerability['South-North'] && !vulnerability['East-West'] && ' None'}
+                {gameState.vulnerability.northSouth && ' NS'}
+                {gameState.vulnerability.eastWest && ' EW'}
+                {!gameState.vulnerability.northSouth && !gameState.vulnerability.eastWest && ' None'}
               </div>
               <div className="flex gap-2">
-                {phase !== 'bidding' && (
+                {gameState.phase !== 'bidding' && (
                   <button
-                    onClick={newDeal}
+                    onClick={newHand}
                     className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded font-semibold text-sm"
                   >
                     New Hand
@@ -522,23 +525,21 @@ export default function BridgeGame() {
           </div>
         </div>
 
-        {phase === 'bidding' && (
+        {gameState.phase === 'bidding' && (
           <div className="space-y-4">
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h2 className="text-xl font-bold mb-4">Bidding Phase</h2>
               <div className="mb-4">
-                <span className="font-semibold">Current Bidder:</span> {POSITIONS[currentPlayer]}
+                <span className="font-semibold">Current Bidder:</span> {gameState.activePlayer}
               </div>
 
               <div className="mb-6 max-h-40 overflow-y-auto">
                 <h3 className="font-semibold mb-2">Bid History:</h3>
                 <div className="grid grid-cols-4 gap-2 text-sm">
-                  {bids.map((bid, i) => (
+                  {gameState.bids.map((bid, i) => (
                     <div key={i} className="p-2 bg-gray-100 rounded">
-                      <span className="font-semibold">{bid.player}:</span>{' '}
-                      {bid.action || `${bid.level}${bid.strain}`}
-                      {bid.doubled && ' X'}
-                      {bid.redoubled && ' XX'}
+                      <span className="font-semibold">{bid.position}:</span>{' '}
+                      {bid.value}
                     </div>
                   ))}
                 </div>
@@ -553,7 +554,7 @@ export default function BridgeGame() {
                         {BID_STRAINS.map(strain => (
                           <button
                             key={`${level}${strain}`}
-                            onClick={() => BidOrPass(level, strain)}
+                            onClick={() => BidOrPass(`${level}${strain}`)}
                             disabled={!isValidBid(level, strain)}
                             className={`w-full py-2 px-1 text-sm rounded ${
                               isValidBid(level, strain)
@@ -571,7 +572,7 @@ export default function BridgeGame() {
 
                 <div className="flex gap-2">
                   <button
-                    onClick={pass}
+                    onClick={() => BidOrPass('Pass')}
                     className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-3 rounded font-semibold"
                   >
                     Pass
@@ -603,39 +604,39 @@ export default function BridgeGame() {
             </div>
 
             <div className="bg-green-700 rounded-lg p-6">
-              <h3 className="text-white font-semibold mb-3 text-center">Your Hand ({POSITIONS[currentPlayer]}):</h3>
-              {renderHand(currentPlayer, false)}
+              <h3 className="text-white font-semibold mb-3 text-center">Your Hand ({gameState.activePlayer}):</h3>
+              {renderHand(gameState.activePlayer, false)}
             </div>
           </div>
         )}
 
-        {phase === 'play' && (
+        {gameState.phase === 'play' && (
           <div className="space-y-4">
             <div className="bg-white rounded-lg shadow-lg p-4">
               <div className="flex justify-between items-center">
                 <div>
-                  <span className="font-semibold">Contract:</span> {contract.level}{contract.strain}
-                  {contract.doubled && ' X'}
-                  {contract.redoubled && ' XX'}
-                  {' by '}{POSITIONS[declarer]}
+                  <span className="font-semibold">Contract:</span> {gameState.currentBid.value}
+                  {gameState.currentBid.doubled && ' X'}
+                  {gameState.currentBid.redoubled && ' XX'}
+                  {' by '}{gameState.currentBid.position}
                 </div>
                 <div>
-                  <span className="font-semibold">Tricks:</span> NS: {tricksWon['South-North']} | EW: {tricksWon['East-West']}
+                  <span className="font-semibold">Tricks:</span>
+                  NS: {gameState.tricksWon.northSouth} | EW: {gameState.tricksWon.eastWest}
                 </div>
               </div>
               <div className="mt-2">
-                <span className="font-semibold">Current:</span> {POSITIONS[currentPlayer]}
-                {leadSuit && <span className="ml-4 font-semibold">Lead: {leadSuit}</span>}
+                <span className="font-semibold">Current:</span> {gameState.activePlayer}
+                {gameState.currentTrick.length && <span className="ml-4 font-semibold">Lead: {gameState.currentTrick[0].suit}</span>}
               </div>
-              {lastTrick && (
+              {gameState.lastTrick && (
                 <div className="mt-3 pt-3 border-t border-gray-200">
-                  <div className="font-semibold text-sm mb-2">Last Trick (won by {POSITIONS[lastTrick.winner]}):</div>
+                  <div className="font-semibold text-sm mb-2">Last Trick (won by {gameState.lastTrick.winner}):</div>
                   <div className="flex gap-2 flex-wrap">
-                    {lastTrick.trick.map((play, i) => (
+                    {gameState.lastTrick.trick.map((card, i) => (
                       <div key={i} className="bg-gray-100 rounded px-2 py-1 text-xs">
-                        <span className="font-semibold">{POSITIONS[play.player]}:</span>{' '}
-                        <span className={play.card.suit === '♥' || play.card.suit === '♦' ? 'text-red-600 font-bold' : 'text-gray-800 font-bold'}>
-                          {play.card.rank}{play.card.suit}
+                        <span className={card.suit === '♥' || card.suit === '♦' ? 'text-red-600 font-bold' : 'text-gray-800 font-bold'}>
+                          {card.rank}{card.suit}
                         </span>
                       </div>
                     ))}
@@ -648,55 +649,53 @@ export default function BridgeGame() {
               {/* North */}
               <div className="absolute top-4 left-1/2 transform -translate-x-1/2">
                 <div className="text-white font-semibold mb-2 text-center text-sm">
-                  {POSITIONS[2]} {dummy === 2 && '(Dummy)'}
+                  {'North'} {gameState.dummy.position === 'North' && '(Dummy)'}
                 </div>
-                {renderHand(2, false)}
+                {renderHand('North', false)}
               </div>
 
               {/* West */}
               <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
                 <div className="text-white font-semibold mb-2 text-sm">
-                  {POSITIONS[1]} {dummy === 1 && '(Dummy)'}
+                  {'West'} {gameState.dummy.position === 'West' && '(Dummy)'}
                 </div>
-                {renderHand(1, true)}
+                {renderHand('West', true)}
               </div>
 
               {/* East */}
               <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
                 <div className="text-white font-semibold mb-2 text-sm">
-                  {POSITIONS[3]} {dummy === 3 && '(Dummy)'}
+                  {'East'} {gameState.dummy.position === 'East' && '(Dummy)'}
                 </div>
-                {renderHand(3, true)}
+                {renderHand('East', true)}
               </div>
 
               {/* South */}
               <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
                 <div className="text-white font-semibold mb-2 text-center text-sm">
-                  {POSITIONS[0]} {dummy === 0 && '(Dummy)'}
+                  {'South'} {gameState.dummy.position === 'South' && '(Dummy)'}
                 </div>
-                {renderHand(0, false)}
+                {renderHand('South', false)}
               </div>
 
               {/* Center trick area */}
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
                 <div className="relative" style={{ width: '200px', height: '200px' }}>
-                  {currentTrick.map((play, i) => {
+                  {gameState.currentTrick.map((card, i) => {
                     const positions = [
-                      { top: '70%', left: '50%', transform: 'translate(-50%, 0)' },
-                      { top: '50%', left: '0%', transform: 'translate(0, -50%)' },
-                      { top: '0%', left: '50%', transform: 'translate(-50%, 0)' },
-                      { top: '50%', left: '70%', transform: 'translate(0, -50%)' }
+                      { top: '70%', left: '50%', transform: 'translate(-50%, 0)' }, //South
+                      { top: '50%', left: '0%', transform: 'translate(0, -50%)' }, //West
+                      { top: '0%', left: '50%', transform: 'translate(-50%, 0)' }, //North
+                      { top: '50%', left: '70%', transform: 'translate(0, -50%)' } //East
                     ];
                     return (
                       <div
                         key={i}
-                        className={`absolute bg-white rounded px-3 py-3 shadow-lg ${
-                          trickWinner === play.player ? 'ring-4 ring-yellow-400' : ''
-                        }`}
-                        style={positions[play.player]}
+                        className={"absolute bg-white rounded px-3 py-3 shadow-lg"}
+                        style={positions[i]}
                       >
-                        <div className={play.card.suit === '♥' || play.card.suit === '♦' ? 'text-red-600 text-lg font-bold' : 'text-gray-800 text-lg font-bold'}>
-                          {play.card.rank}{play.card.suit}
+                        <div className={card.suit === '♥' || card.suit === '♦' ? 'text-red-600 text-lg font-bold' : 'text-gray-800 text-lg font-bold'}>
+                          {card.rank}{card.suit}
                         </div>
                       </div>
                     );
@@ -707,47 +706,47 @@ export default function BridgeGame() {
           </div>
         )}
 
-        {phase === 'gameOver' && (
+        {gameState.phase === 'cleanup' && (
           <div className="bg-white rounded-lg shadow-lg p-6 text-center">
             <h2 className="text-2xl font-bold mb-4">Hand Complete!</h2>
             <div className="text-xl mb-4">
-              <div>Contract: {contract.level}{contract.strain}
-                {contract.doubled && ' X'}
-                {contract.redoubled && ' XX'}
-                {' by '}{POSITIONS[declarer]}
+              <div>Contract: {gameState.currentBid.value}
+                {gameState.currentBid.doubled && ' X'}
+                {gameState.currentBid.redoubled && ' XX'}
+                {' by '}{gameState.currentBid.position}
               </div>
               <div className="mt-2">Tricks Won:</div>
-              <div>North-South: {tricksWon['South-North']}</div>
-              <div>East-West: {tricksWon['East-West']}</div>
+              <div>North-South: {gameState.tricksWon.northSouth}</div>
+              <div>East-West: {gameState.tricksWon.eastWest}</div>
             </div>
             <div className="text-lg font-semibold mb-4">
               {(() => {
-                const declarerTeam = declarer === 0 || declarer === 2 ? 'South-North' : 'East-West';
-                const tricksNeeded = 6 + contract.level;
-                const tricksMade = tricksWon[declarerTeam];
+                const declarerTeam = POSITIONS.indexOf(gameState.currentBid.position) % 2 ? 'northSouth' : 'eastWest';
+                const tricksNeeded = 6 + parseInt(gameState.currentBid.value);
+                const tricksMade = gameState.tricksWon[declarerTeam];
                 const diff = tricksMade - tricksNeeded;
 
                 if (tricksMade >= tricksNeeded) {
                   if (diff === 0) {
-                    return `${POSITIONS[declarer]}'s team made the contract exactly!`;
+                    return `${gameState.currentBid.position}'s team made the contract exactly!`;
                   } else {
-                    return `${POSITIONS[declarer]}'s team made the contract with ${diff} overtrick${diff > 1 ? 's' : ''}!`;
+                    return `${gameState.currentBid.position}'s team made the contract with ${diff} overtrick${diff > 1 ? 's' : ''}!`;
                   }
                 } else {
-                  return `${POSITIONS[declarer]}'s team went down ${-diff} trick${-diff > 1 ? 's' : ''}!`;
+                  return `${gameState.currentBid.position}'s team was set by ${-diff} trick${-diff > 1 ? 's' : ''}!`;
                 }
               })()}
             </div>
             <div className="text-lg mb-6 p-4 bg-gray-100 rounded">
               <div className="font-bold mb-2">Current Score:</div>
-              <div>North-South: {score['South-North']}</div>
-              <div>East-West: {score['East-West']}</div>
+              <div>North-South: {gameState.score.northSouth}</div>
+              <div>East-West: {gameState.score.eastWest}</div>
             </div>
             <div className="text-sm text-gray-600 mb-4">
-              Next hand starting automatically in 3 seconds...
+              Next hand starting automatically in 5 seconds...
             </div>
             <button
-              onClick={newDeal}
+              onClick={newHand}
               className="bg-blue-500 hover:bg-blue-600 text-white px-8 py-3 rounded font-semibold"
             >
               Start Next Hand Now
