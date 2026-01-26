@@ -151,3 +151,6 @@ vite.config.ts.timestamp-*
 *.njsproj
 *.sln
 *.sw?
+
+#to-do list
+TODO.txt
