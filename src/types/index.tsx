@@ -35,7 +35,7 @@ export interface GameState {
     visible: boolean;
   };
   currentTrick: Card[];
-  lastTrick: null | {
+  lastTrick: {
     trick: Card[];
     winner: Position;
   };
@@ -48,7 +48,7 @@ export interface GameState {
     eastWest: boolean;
   };
   score: {
-    northSouth: number;
-    eastWest: number;
+    northSouth: number[];
+    eastWest: number[];
   };
 }

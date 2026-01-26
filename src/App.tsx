@@ -31,7 +31,6 @@ const shuffleAndDeal = () => {
 };
 
 const sortCards = (a: Card, b: Card) => {
-  //const suitOrder = { '♠': 0, '♥': 1, '♦': 2, '♣': 3 };
   if (a.suit !== b.suit) {
     return BID_STRAINS.indexOf(a.suit) - BID_STRAINS.indexOf(b.suit);
   }
@@ -52,7 +51,10 @@ export default function BridgeGame() {
     activePlayer: 'South',
     hands: shuffleAndDeal(),
     currentTrick: [],
-    lastTrick: null,
+    lastTrick: {
+      trick: [],
+      winner: 'South',
+    },
     tricksWon: {
       northSouth: 0,
       eastWest: 0,
@@ -66,8 +68,8 @@ export default function BridgeGame() {
       eastWest: false,
     },
     score: {
-      northSouth: 0,
-      eastWest: 0,
+      northSouth: [0, 0],
+      eastWest: [0, 0],
     },
   };
 
@@ -90,6 +92,10 @@ export default function BridgeGame() {
       dealer: newDealer,
       activePlayer: newDealer,
       hands: newHands,
+      lastTrick: {
+        trick: [],
+        winner: newDealer,
+      },
       score: gameScore,
       vulnerability: teamVulnerability,
     });
@@ -100,47 +106,46 @@ export default function BridgeGame() {
       value: bidValue,
       position: gameState.activePlayer,
     };
-    const newBids = [...gameState.bids, newBid];
-    let winningBid = gameState.currentBid;
+    const currentGameState = gameState;
+    const newBids = [...currentGameState.bids, newBid];
+    let winningBid = currentGameState.currentBid;
+
     if (bidValue !== 'Pass') {
       winningBid = {
         ...newBid,
         doubled: false,
         redoubled: false,
       };
-      setGameState({
-        ...gameState,
-        bids: newBids,
-        currentBid: winningBid,
-        activePlayer: getNextPlayer(gameState.activePlayer),
-      });
-      return;
     }
+
     setGameState({
-      ...gameState,
+      ...currentGameState,
       bids: newBids,
       currentBid: winningBid,
-      activePlayer: getNextPlayer(gameState.activePlayer),
+      activePlayer: getNextPlayer(currentGameState.activePlayer),
     });
+
     checkBiddingEnd(newBids);
 
   };
 
   const double = () => {
+    const currentGameState = gameState;
     setGameState({
-      ...gameState,
-      bids: [...gameState.bids, {value: 'Double', position: gameState.activePlayer}],
-      currentBid: {...gameState.currentBid, doubled: true},
-      activePlayer: getNextPlayer(gameState.activePlayer),
+      ...currentGameState,
+      bids: [...currentGameState.bids, {value: 'Double', position: currentGameState.activePlayer}],
+      currentBid: {...currentGameState.currentBid, doubled: true},
+      activePlayer: getNextPlayer(currentGameState.activePlayer),
     });
   };
 
   const redouble = () => {
+    const currentGameState = gameState;
     setGameState({
-      ...gameState,
-      bids: [...gameState.bids, {value: 'Redouble', position: gameState.activePlayer}],
-      currentBid: {...gameState.currentBid, redoubled: true},
-      activePlayer: getNextPlayer(gameState.activePlayer),
+      ...currentGameState,
+      bids: [...currentGameState.bids, {value: 'Redouble', position: currentGameState.activePlayer}],
+      currentBid: {...currentGameState.currentBid, redoubled: true},
+      activePlayer: getNextPlayer(currentGameState.activePlayer),
     });
   };
 
@@ -149,15 +154,21 @@ export default function BridgeGame() {
 
     const contractBid = gameState.currentBid;
 
-    if (!contractBid.value) { // all players have passed, current bid is null. reshuffle and start new hand
+    if (contractBid.value === 'None') { // all players have passed, current bid is null. reshuffle and start new hand
       newHand();
+      // show message that all players have passe and new hand has started?
       return;
     }
 
+    // Bidding ends with 3 passes
+    const lastThreeBids = allBids.slice(-3);
+    if (!lastThreeBids.every(bid => bid.value === 'Pass')) return; // last 3 bids have not been passes
+
     const winnerPosition = contractBid.position;
+    const currentGameState = gameState;
 
     setGameState({
-      ...gameState,
+      ...currentGameState,
       phase: 'play',
       activePlayer: getNextPlayer(winnerPosition),
       dummy: {
@@ -184,34 +195,48 @@ export default function BridgeGame() {
       }
     }
 
+    const currentGameState = gameState;
     const updatedTrick = [...thisTrick, playedCard]; //add card to current trick
     const updatedCurrentHand = currentHand.filter((_, i) => i !== cardIndex); // remove card from player's hand
-    const updatedHands = { ...gameState.hands };
-    updatedHands[gameState.activePlayer] = updatedCurrentHand; //update hands
+    const updatedHands = { ...currentGameState.hands };
+    updatedHands[currentGameState.activePlayer] = updatedCurrentHand; //update hands
 
-    setGameState({
-      ...gameState,
-      currentTrick: updatedTrick,
-      hands: updatedHands,
-    });
+
+    console.log('on play', updatedTrick);
+
 
     if (updatedTrick.length === 4) {
-      setTimeout(() => finishTrick(updatedTrick), 1000);
+      setGameState({
+        ...currentGameState,
+        currentTrick: updatedTrick,
+        hands: updatedHands,
+      });
+      setTimeout(() => finishTrick(updatedTrick, updatedHands), 1000);
       return;
     }
 
     setGameState({
-      ...gameState,
-      activePlayer: getNextPlayer(gameState.activePlayer),
+      ...currentGameState,
+      currentTrick: updatedTrick,
+      hands: updatedHands,
+      activePlayer: getNextPlayer(currentGameState.activePlayer),
       dummy: {
-        ...gameState.dummy,
+        ...currentGameState.dummy,
         visible: true,
       },
     });
 
   };
 
-  const finishTrick = (finishedTrick: Card[]) => {
+  const finishTrick = (
+    finishedTrick: Card[],
+    updatedHands: {
+      South: Card[];
+      West: Card[];
+      North: Card[];
+      East: Card[];
+    },
+  ) => {
     const trump = gameState.currentBid.value.slice(-1);
     const leadPosition = getNextPlayer(gameState.activePlayer);
     const leadSuit = finishedTrick[0].suit;
@@ -234,12 +259,15 @@ export default function BridgeGame() {
         winnerIndex = i;
       }
     }
+
+    const currentGameState = gameState;
     const winningPositionIndex = (POSITIONS.indexOf(leadPosition) + winnerIndex) % 4;
     const winningPosition = POSITIONS[winningPositionIndex];
-    const currentTricksWon = gameState.tricksWon;
+    const currentTricksWon = currentGameState.tricksWon;
 
     setGameState({
-      ...gameState,
+      ...currentGameState,
+      hands: updatedHands,
       currentTrick: [],
       activePlayer: winningPosition,
       lastTrick: {
@@ -247,109 +275,91 @@ export default function BridgeGame() {
         winner: winningPosition,
       },
       tricksWon: {
-        northSouth: currentTricksWon.northSouth + (winningPositionIndex % 2 ? 1 : 0),
-        eastWest: currentTricksWon.eastWest + (winningPositionIndex % 2 ? 0 : 1),
+        northSouth: currentTricksWon.northSouth + (winningPositionIndex + 1) % 2, // if position index is even, +1 NS trick
+        eastWest: currentTricksWon.eastWest + winningPositionIndex % 2, // if position index is odd, +1 EW trick
       }
     });
 
     //Check if end of hand
     const allHandsEmpty = gameState.hands.South.length === 0;
     if (allHandsEmpty) {
+      const scoringResults = calculateScore();
       const currentGameState = gameState;
       setGameState({
         ...currentGameState,
+        score: scoringResults.newScore,
+        vulnerability: scoringResults.newVulnerability,
         phase: 'cleanup',
-      })
-      //calculateScore();
+      });
       setTimeout(() => {
-        newHand();
+        scoringResults.gameEnd ? newGame() : newHand();
       }, 5000);
     }
   };
 
-  // const calculateScore = () => {
-  //   const declarerTeam = declarer === 0 || declarer === 2 ? 'South-North' : 'East-West';
-  //   const defenderTeam = declarerTeam === 'South-North' ? 'East-West' : 'South-North';
-  //   const tricksNeeded = 6 + contract.level;
-  //   const tricksMade = tricksWon[declarerTeam];
-  //   const overtricks = tricksMade - tricksNeeded;
-  //   const undertricks = tricksNeeded - tricksMade;
-  //   const vulnerable = vulnerability[declarerTeam];
+  const calculateScore = () => {
+    const contract = gameState.currentBid;
+    const contractPositionIndex = POSITIONS.indexOf(contract.position);
+    const contractTeam = contractPositionIndex % 2 === 0 ? 'northSouth' : 'eastWest';
+    const defendingTeam = contractPositionIndex % 2 === 1 ? 'northSouth' : 'eastWest';
+    const dblMultiplier = (contract.doubled ? 2 : 1) * (contract.redoubled ? 2 : 1);
+    const contractLevel = parseInt(contract.value);
+    const contractSuitIndex = BID_STRAINS.indexOf(contract.value.slice(1));
+    const tricksMade = gameState.tricksWon[contractTeam];
+    const overtricks = tricksMade - (6 + contractLevel);
+    const updatedVulnerability = gameState.vulnerability;
+    const vulnerable = updatedVulnerability[contractTeam];
+    const currentScore = gameState.score;
+    let pointsOverUnder = [0, 0]; //[points over the line, points under the line]
 
-  //   let points = 0;
+    // display score as overLine/firstGame/secondGame/ThirdGame
 
-  //   if (tricksMade >= tricksNeeded) {
-  //     const basePoints = {
-  //       '♣': 20,
-  //       '♦': 20,
-  //       '♥': 30,
-  //       '♠': 30,
-  //       'NT': 30
-  //     };
+    if (overtricks >= 0) { // team made their contract
 
-  //     let contractPoints = basePoints[contract.strain] * contract.level;
-  //     if (contract.strain === 'NT') contractPoints += 10;
+      if (contractSuitIndex < 0) { //invalid Bid suit
+        console.log('contract suit not found', contractSuitIndex);
+        return {newScore: gameState.score, newVulnerability: gameState.vulnerability, gameEnd: true};
+      } else {
+        const extraNTPoints = contractSuitIndex === 4 ? 10 : 0; //extra 10 points if 'NT' bid
+        const trickWorth = contractSuitIndex < 2 ? 20 : 30; //BIDSUITS = [club,diamond,heart,spade,nt]
+        pointsOverUnder[1] += (contractLevel * trickWorth + extraNTPoints) * dblMultiplier; //adding to points under line
+        pointsOverUnder[0] += overtricks * trickWorth * dblMultiplier; // adding to points over line
+      }
 
-  //     if (contract.doubled) contractPoints *= 2;
-  //     if (contract.redoubled) contractPoints *= 4;
+      //Adding points to winning team's score
+      const updatedTeamScore = currentScore[contractTeam];
+      updatedTeamScore[0] += pointsOverUnder[0];
+      updatedTeamScore[updatedTeamScore.length - 1] += pointsOverUnder[1];
+      const updatedScore = {
+        northSouth: contractPositionIndex % 2 === 0 ? updatedTeamScore : currentScore.northSouth,
+        eastWest: contractPositionIndex % 2 === 1 ? updatedTeamScore : currentScore.eastWest
+      };
 
-  //     let bonus = 0;
-  //     if (contractPoints >= 100) {
-  //       bonus = vulnerable ? 500 : 300;
-  //     } else {
-  //       bonus = 50;
-  //     }
+      const gameWon = updatedTeamScore[updatedTeamScore.length - 1] >= 100; //check current game score is 100+
+      if (gameWon) {
+        if(vulnerable) { //if winning team is vulnerable, play is over
+          return {newScore: updatedScore, newVulnerability: updatedVulnerability, gameEnd: true};
+        } // else set vulnerability to true and add a new score element to each team's array for the new game
+        updatedVulnerability[contractTeam] = true;
+        updatedScore.northSouth.push(0);
+        updatedScore.eastWest.push(0);
+      }
 
-  //     if (contract.level === 6) {
-  //       bonus += vulnerable ? 750 : 500;
-  //     } else if (contract.level === 7) {
-  //       bonus += vulnerable ? 1500 : 1000;
-  //     }
+      return {newScore: updatedScore, newVulnerability: updatedVulnerability, gameEnd: false};
+    }
 
-  //     if (contract.doubled) bonus += 50;
-  //     if (contract.redoubled) bonus += 100;
+    // team got set
+    const setAmount = Math.abs(overtricks);
+    const setPoints = setAmount * 50 * dblMultiplier * (vulnerable ? 2 : 1);
+    const updatedTeamScore = currentScore[defendingTeam];
+    updatedTeamScore[0] += setPoints;
+    const updatedScore = {
+      northSouth: contractPositionIndex % 2 === 1 ? updatedTeamScore : currentScore.northSouth,
+      eastWest: contractPositionIndex % 2 === 0 ? updatedTeamScore : currentScore.eastWest
+    };
 
-  //     let overtrickPoints = 0;
-  //     if (overtricks > 0) {
-  //       if (contract.doubled) {
-  //         overtrickPoints = overtricks * (vulnerable ? 200 : 100);
-  //       } else if (contract.redoubled) {
-  //         overtrickPoints = overtricks * (vulnerable ? 400 : 200);
-  //       } else {
-  //         overtrickPoints = overtricks * basePoints[contract.strain];
-  //       }
-  //     }
-
-  //     points = contractPoints + bonus + overtrickPoints;
-  //     setScore(prev => ({ ...prev, [declarerTeam]: prev[declarerTeam] + points }));
-  //   } else {
-  //     if (contract.doubled) {
-  //       for (let i = 0; i < undertricks; i++) {
-  //         if (i === 0) {
-  //           points += vulnerable ? 200 : 100;
-  //         } else if (i <= 2) {
-  //           points += vulnerable ? 300 : 200;
-  //         } else {
-  //           points += 300;
-  //         }
-  //       }
-  //     } else if (contract.redoubled) {
-  //       for (let i = 0; i < undertricks; i++) {
-  //         if (i === 0) {
-  //           points += vulnerable ? 400 : 200;
-  //         } else if (i <= 2) {
-  //           points += vulnerable ? 600 : 400;
-  //         } else {
-  //           points += 600;
-  //         }
-  //       }
-  //     } else {
-  //       points = undertricks * (vulnerable ? 100 : 50);
-  //     }
-
-  //     setScore(prev => ({ ...prev, [defenderTeam]: prev[defenderTeam] + points }));
-  //   }
-  // };
+    return {newScore: updatedScore, newVulnerability: updatedVulnerability, gameEnd: false};
+  };
 
   const canDouble = () => {
     //cant double if alreaady doubled
@@ -362,7 +372,7 @@ export default function BridgeGame() {
   };
 
   const canRedouble = () => {
-    //cant redouble if alreaady redoubled or not dobuled to begin with
+    // cant redouble if alreaady redoubled or not dobuled to begin with
     if (gameState.currentBid.redoubled || !gameState.currentBid.doubled) return false;
     // only currenet bid winning team can redouble
     const currentBidWinner = gameState.currentBid.position;
@@ -400,7 +410,7 @@ export default function BridgeGame() {
     }
 
     // Group by suit
-    const bySuit: Card[][] = [[]]; // 2d array of cards, in Spade, heart, club, diamond order
+    const bySuit: Card[][] = [[], [], [], []]; // 2d array of cards, in Spade, heart, club, diamond order
     hand.forEach(card => bySuit[SUITS.indexOf(card.suit)].push(card));
 
     if (isVertical) {
@@ -496,10 +506,14 @@ export default function BridgeGame() {
             <h1 className="text-2xl font-bold">Bridge</h1>
             <div className="flex items-center gap-4">
               <div className="text-sm">
-                <span className="font-semibold">Score:</span> NS: {gameState.score.northSouth} | EW: {gameState.score.eastWest}
+                <span className="font-semibold">Score:</span>
+              </div>
+              <div className="text-sm">NS: {gameState.score.northSouth.join('/')}</div>
+              <div className="text-sm">EW: {gameState.score.eastWest.join('/')}</div>
+              <div className="text-sm">
+                <span className="font-semibold">Dealer:</span> {gameState.dealer}
               </div>
               <div className="text-sm">
-                <span className="font-semibold">Dealer:</span> {gameState.dealer} |
                 <span className="font-semibold ml-2">Vuln:</span>
                 {gameState.vulnerability.northSouth && ' NS'}
                 {gameState.vulnerability.eastWest && ' EW'}
@@ -616,20 +630,22 @@ export default function BridgeGame() {
               <div className="flex justify-between items-center">
                 <div>
                   <span className="font-semibold">Contract:</span> {gameState.currentBid.value}
-                  {gameState.currentBid.doubled && ' X'}
                   {gameState.currentBid.redoubled && ' XX'}
+                  {!gameState.currentBid.redoubled && gameState.currentBid.doubled && ' X'}
                   {' by '}{gameState.currentBid.position}
                 </div>
                 <div>
-                  <span className="font-semibold">Tricks:</span>
+                  <span className="font-semibold">Tricks: </span>
                   NS: {gameState.tricksWon.northSouth} | EW: {gameState.tricksWon.eastWest}
                 </div>
               </div>
               <div className="mt-2">
-                <span className="font-semibold">Current:</span> {gameState.activePlayer}
-                {gameState.currentTrick.length && <span className="ml-4 font-semibold">Lead: {gameState.currentTrick[0].suit}</span>}
+                <span className="font-semibold">Current Player:</span> {gameState.activePlayer}
               </div>
-              {gameState.lastTrick && (
+              <div className="mt-2">
+                {gameState.currentTrick.length > 0 && <span className="ml-4 font-semibold">Lead: {gameState.currentTrick[0].suit}</span>}
+              </div>
+              {gameState.lastTrick.trick.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-gray-200">
                   <div className="font-semibold text-sm mb-2">Last Trick (won by {gameState.lastTrick.winner}):</div>
                   <div className="flex gap-2 flex-wrap">
@@ -692,7 +708,7 @@ export default function BridgeGame() {
                       <div
                         key={i}
                         className={"absolute bg-white rounded px-3 py-3 shadow-lg"}
-                        style={positions[i]}
+                        style={positions[POSITIONS.indexOf(gameState.lastTrick.winner) + i % 4]}
                       >
                         <div className={card.suit === '♥' || card.suit === '♦' ? 'text-red-600 text-lg font-bold' : 'text-gray-800 text-lg font-bold'}>
                           {card.rank}{card.suit}
@@ -711,8 +727,8 @@ export default function BridgeGame() {
             <h2 className="text-2xl font-bold mb-4">Hand Complete!</h2>
             <div className="text-xl mb-4">
               <div>Contract: {gameState.currentBid.value}
-                {gameState.currentBid.doubled && ' X'}
                 {gameState.currentBid.redoubled && ' XX'}
+                {!gameState.currentBid.redoubled && gameState.currentBid.doubled && ' X'}
                 {' by '}{gameState.currentBid.position}
               </div>
               <div className="mt-2">Tricks Won:</div>
