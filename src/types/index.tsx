@@ -10,18 +10,23 @@ export interface Card {
   rank: string;
 }
 
+export interface Bid {
+  value: string;
+  position: Position;
+}
+
+export interface Contract extends Bid {
+  doubled: boolean;
+  redoubled: boolean;
+}
+
 export type Position = 'South'| 'West'| 'North'| 'East';
 export type Suit = '♠'|'♥'|'♦'|'♣';
 
 export interface GameState {
   phase: 'bidding' | 'play' | 'cleanup';
-  bids: {value: string, position: Position}[];
-  currentBid: {
-    value: string;
-    position: Position;
-    doubled: boolean;
-    redoubled: boolean;
-  };
+  bids: Bid[];
+  currentBid: Contract;
   dealer: Position;
   activePlayer: Position;
   hands: {
