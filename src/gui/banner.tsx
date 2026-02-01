@@ -1,4 +1,4 @@
-import { GameState } from '../types';
+import type { GameState } from '../types';
 import { newGame, newHand } from '../deck';
 
 export default function banner (state: GameState, setState: Function) {

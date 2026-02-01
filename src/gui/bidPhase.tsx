@@ -1,4 +1,5 @@
-import { BID_LEVELS, BID_STRAINS, GameState } from '../types';
+import { BID_LEVELS, BID_STRAINS } from '../types';
+import type { GameState } from '../types';
 import {
   bidOrPass, canDouble, canRedouble,
   double, isValidBid, redouble,

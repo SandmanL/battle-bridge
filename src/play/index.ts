@@ -1,4 +1,5 @@
-import { RANKS, POSITIONS, BID_STRAINS, Position, Card, GameState } from '../types';
+import { RANKS, POSITIONS, BID_STRAINS } from '../types';
+import type { Position, Card, GameState } from '../types';
 import { newGame, newHand } from '../deck';
 
 export const getNextPlayer = (position: Position) => POSITIONS[(POSITIONS.indexOf(position) + 1) % 4];

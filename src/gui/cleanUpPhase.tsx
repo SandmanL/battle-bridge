@@ -1,4 +1,5 @@
-import { GameState, POSITIONS } from '../types';
+import { POSITIONS } from '../types';
+import type { GameState } from '../types';
 import { newHand } from '../deck';
 
 export default function cleanUpPhase (state: GameState, setState: Function) {

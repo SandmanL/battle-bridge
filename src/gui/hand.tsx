@@ -1,4 +1,5 @@
-import { Card, GameState, Position, SUITS } from '../types';
+import { SUITS } from '../types';
+import type { Card, GameState, Position } from '../types';
 import { playCard } from '../play';
 
 export default function renderHand (state: GameState, setState: Function, position: Position, isVertical = false) {

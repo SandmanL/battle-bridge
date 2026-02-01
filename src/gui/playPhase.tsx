@@ -1,4 +1,5 @@
-import { GameState, POSITIONS } from '../types';
+import { POSITIONS } from '../types';
+import type { GameState } from '../types';
 import renderHand from './hand';
 
 export default function playPhase (state: GameState, setState: Function){
