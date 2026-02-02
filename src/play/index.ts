@@ -1,4 +1,4 @@
-import { RANKS, POSITIONS, BID_STRAINS } from '../types';
+import { RANKS, PLAYER, POSITIONS, BID_STRAINS } from '../types';
 import type { Position, Card, GameState } from '../types';
 import { newGame, newHand } from '../deck';
 
@@ -47,6 +47,35 @@ export const playCard = (state: GameState, setState: Function, playedCard: Card)
     },
   });
 };
+
+export function autoPlay (state: GameState, setState: Function) {
+  const isDummyPlayable = state.dummy.position === 'North';
+  const playingPosition = state.activePlayer;
+  // if its the players turn and or player controlled dummy, do nothing
+  if (playingPosition === PLAYER || (isDummyPlayable && playingPosition === 'North')) {
+    return'';
+  }
+  const currentTrick = state.currentTrick;
+  // if trick is full, do nothing
+  if (currentTrick.length === 4) {
+    return '';
+  }
+  const currentHand = state.hands[playingPosition];
+  if (currentTrick.length !== 0) { // must play lead suit if able
+    const leadSuit = currentTrick[0].suit;
+    const validCards = currentHand.filter(c => c.suit === leadSuit);
+    if (validCards.length !== 0) { //can play on lead suit
+      playCard(state, setState, validCards[0]);
+      return '';
+    }
+    // cant play lead suit, play last card
+    playCard(state, setState, currentHand[currentHand.length - 1]);
+    return '';
+  }
+  //playing first card in trick
+    playCard(state, setState, currentHand[0]);
+    return'';
+}
 
 const finishTrick = (
   state: GameState,

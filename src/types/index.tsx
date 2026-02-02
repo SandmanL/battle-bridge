@@ -1,9 +1,9 @@
-
 export const SUITS: Suit[] = ['♠', '♥', '♣', '♦'];
 export const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 export const POSITIONS: Position[] = ['South', 'West', 'North', 'East'];
 export const BID_LEVELS = [1, 2, 3, 4, 5, 6, 7];
 export const BID_STRAINS = ['♣', '♦', '♥', '♠', 'NT'];
+export const PLAYER = 'South';
 
 export interface Card {
   suit: Suit;
