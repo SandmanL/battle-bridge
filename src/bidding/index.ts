@@ -1,5 +1,5 @@
-import { BID_STRAINS, POSITIONS } from '../types';
-import type { Bid, Contract, GameState } from '../types';
+import { BID_STRAINS, PLAYER, POSITIONS, SUITS } from '../types';
+import type { Bid, Card, Contract, GameState } from '../types';
 import { newHand } from '../deck';
 import { getNextPlayer } from '../play';
 
@@ -61,6 +61,34 @@ export const bidOrPass = (state: GameState, setState: Function, bidValue: string
   checkBiddingEnd(state, setState, newBids);
 
 };
+
+export function autoBid (state: GameState, setState: Function) {
+  const playingPosition = state.activePlayer;
+  // if it is the player's turn, do nothing
+  if (playingPosition === PLAYER) {
+    return'';
+  }
+  const activeHand = state.hands[playingPosition];
+  // Group by suit
+  const bySuit: Card[][] = [[], [], [], []]; // 2d array of cards, in Spade, heart, club, diamond order
+  activeHand.forEach(card => bySuit[SUITS.indexOf(card.suit)].push(card));
+  const suitLenghts = bySuit.map(set => set.length);
+  const longestSuit = bySuit[suitLenghts.indexOf(Math.max(...suitLenghts))];
+  const bidSuit = longestSuit[0].suit;
+  const maxBidLevel = longestSuit.length - 4;
+  // bid if longest suit >= 5 and up to suit.length - 4
+  if (maxBidLevel < 1) {
+    bidOrPass(state, setState, 'Pass');
+    return '';
+  }
+
+  if (isValidBid(state.currentBid, maxBidLevel, bidSuit)) {
+    bidOrPass(state, setState, `${maxBidLevel}${bidSuit}`);
+  } else {
+    bidOrPass(state, setState, 'Pass');
+  }
+  return'';
+}
 
 export const double = (state: GameState, setState: Function) => {
   const currentGameState = state;

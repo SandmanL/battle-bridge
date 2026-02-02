@@ -1,7 +1,7 @@
-import { BID_LEVELS, BID_STRAINS } from '../types';
+import { BID_LEVELS, BID_STRAINS, PLAYER } from '../types';
 import type { GameState } from '../types';
 import {
-  bidOrPass, canDouble, canRedouble,
+  autoBid, bidOrPass, canDouble, canRedouble,
   double, isValidBid, redouble,
 } from '../bidding';
 import renderHand from './hand';
@@ -14,7 +14,14 @@ export default function bidPhase (state: GameState, setState: Function){
         <div className="mb-4">
           <span className="font-semibold">Current Bidder:</span> {state.activePlayer}
         </div>
-
+        <div>
+          {(() => {
+            setTimeout(() => {
+              autoBid(state, setState);
+            }, 1000);
+            return'';
+          })()}
+        </div>
         <div className="mb-6 max-h-40 overflow-y-auto">
           <h3 className="font-semibold mb-2">Bid History:</h3>
           <div className="grid grid-cols-4 gap-2 text-sm">
@@ -37,7 +44,7 @@ export default function bidPhase (state: GameState, setState: Function){
                     <button
                       key={`${level}${strain}`}
                       onClick={() => bidOrPass(state, setState, `${level}${strain}`)}
-                      disabled={!isValidBid(state.currentBid, level, strain)}
+                      disabled={!isValidBid(state.currentBid, level, strain) || state.activePlayer !== PLAYER}
                       className={`w-full py-2 px-1 text-sm rounded ${
                         isValidBid(state.currentBid, level, strain)
                           ? 'bg-blue-500 hover:bg-blue-600 text-white'
@@ -55,13 +62,14 @@ export default function bidPhase (state: GameState, setState: Function){
           <div className="flex gap-2">
             <button
               onClick={() => bidOrPass(state, setState, 'Pass')}
+              disabled={state.activePlayer !== PLAYER}
               className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-3 rounded font-semibold"
             >
               Pass
             </button>
             <button
               onClick={() => double(state, setState)}
-              disabled={!canDouble(state)}
+              disabled={!canDouble(state) || state.activePlayer !== PLAYER}
               className={`flex-1 py-3 rounded font-semibold ${
                 canDouble(state)
                   ? 'bg-red-500 hover:bg-red-600 text-white'
@@ -72,7 +80,7 @@ export default function bidPhase (state: GameState, setState: Function){
             </button>
             <button
               onClick={() => redouble(state, setState)}
-              disabled={!canRedouble(state)}
+              disabled={!canRedouble(state) || state.activePlayer !== PLAYER}
               className={`flex-1 py-3 rounded font-semibold ${
                 canRedouble(state)
                   ? 'bg-orange-500 hover:bg-orange-600 text-white'

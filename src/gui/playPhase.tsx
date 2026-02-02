@@ -1,6 +1,6 @@
-import { POSITIONS } from '../types';
 import type { GameState } from '../types';
 import renderHand from './hand';
+import { autoPlay } from '../play';
 
 export default function playPhase (state: GameState, setState: Function){
   const contract = state.currentBid;
@@ -12,6 +12,14 @@ export default function playPhase (state: GameState, setState: Function){
       <div className="bg-white rounded-lg shadow-lg p-4">
         <div className="flex justify-between items-center">
           <div>
+            <div>
+              {(() => {
+                setTimeout(() => {
+                  autoPlay(state, setState);
+                }, 1000);
+                return'';
+              })()}
+            </div>
             <span className="font-semibold">Contract:</span> {contract.value}
             {contract.redoubled && ' XX'}
             {!contract.redoubled && contract.doubled && ' X'}
@@ -33,6 +41,20 @@ export default function playPhase (state: GameState, setState: Function){
             <div className="font-semibold text-sm mb-2">Last Trick (won by {lastTrick.winner}):</div>
             <div className="flex gap-2 flex-wrap">
               {lastTrick.trick.map((card, i) => (
+                <div key={i} className="bg-gray-100 rounded px-2 py-1 text-xs">
+                  <span className={card.suit === '♥' || card.suit === '♦' ? 'text-red-600 font-bold' : 'text-gray-800 font-bold'}>
+                    {card.rank}{card.suit}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {currentTrick.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-gray-200">
+            <div className="font-semibold text-sm mb-2">This trick:</div>
+            <div className="flex gap-2 flex-wrap">
+              {currentTrick.map((card, i) => (
                 <div key={i} className="bg-gray-100 rounded px-2 py-1 text-xs">
                   <span className={card.suit === '♥' || card.suit === '♦' ? 'text-red-600 font-bold' : 'text-gray-800 font-bold'}>
                     {card.rank}{card.suit}
@@ -75,31 +97,6 @@ export default function playPhase (state: GameState, setState: Function){
             {'South'} {dummy === 'South' && '(Dummy)'}
           </div>
           {renderHand(state, setState, 'South', false)}
-        </div>
-
-        {/* Center trick area */}
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-          <div className="relative" style={{ width: '200px', height: '200px' }}>
-            {currentTrick.map((card, i) => {
-              const positions = [
-                { top: '70%', left: '50%', transform: 'translate(-50%, 0)' }, //South
-                { top: '50%', left: '0%', transform: 'translate(0, -50%)' }, //West
-                { top: '0%', left: '50%', transform: 'translate(-50%, 0)' }, //North
-                { top: '50%', left: '70%', transform: 'translate(0, -50%)' } //East
-              ];
-              return (
-                <div
-                  key={i}
-                  className={"absolute bg-white rounded px-3 py-3 shadow-lg"}
-                  style={positions[POSITIONS.indexOf(lastTrick.winner) + i % 4]}
-                >
-                  <div className={card.suit === '♥' || card.suit === '♦' ? 'text-red-600 text-lg font-bold' : 'text-gray-800 text-lg font-bold'}>
-                    {card.rank}{card.suit}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
         </div>
       </div>
     </div>

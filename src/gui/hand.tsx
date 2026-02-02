@@ -1,4 +1,4 @@
-import { SUITS } from '../types';
+import { PLAYER, SUITS } from '../types';
 import type { Card, GameState, Position } from '../types';
 import { playCard } from '../play';
 
@@ -6,7 +6,7 @@ export default function renderHand (state: GameState, setState: Function, positi
   const hand = state.hands[position];
   const isDummyPlayer = state.dummy.position === position;
   const isCurrentPlayer = state.activePlayer === position;
-  const shouldShowCards = (isDummyPlayer && state.dummy.visible) || isCurrentPlayer;
+  const shouldShowCards = (isDummyPlayer && state.dummy.visible) || position === PLAYER;
 
   if (!shouldShowCards) {
     return (
