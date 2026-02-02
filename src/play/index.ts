@@ -73,8 +73,8 @@ export function autoPlay (state: GameState, setState: Function) {
     return '';
   }
   //playing first card in trick
-    playCard(state, setState, currentHand[0]);
-    return'';
+  playCard(state, setState, currentHand[0]);
+  return'';
 }
 
 const finishTrick = (
