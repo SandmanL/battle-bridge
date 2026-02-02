@@ -26,10 +26,6 @@ export const playCard = (state: GameState, setState: Function, playedCard: Card)
   const updatedHands = { ...currentGameState.hands };
   updatedHands[currentGameState.activePlayer] = updatedCurrentHand; //update hands
 
-
-  console.log('on play', updatedTrick);
-
-
   if (updatedTrick.length === 4) {
     setState({
       ...currentGameState,
@@ -86,13 +82,11 @@ const finishTrick = (
     }
   }
 
-  const currentGameState = state;
   const winningPositionIndex = (POSITIONS.indexOf(leadPosition) + winnerIndex) % 4;
   const winningPosition = POSITIONS[winningPositionIndex];
-  const currentTricksWon = currentGameState.tricksWon;
-
-  setState({
-    ...currentGameState,
+  const currentTricksWon = state.tricksWon;
+  const currentGameState = {
+    ...state,
     hands: updatedHands,
     currentTrick: [],
     activePlayer: winningPosition,
@@ -104,21 +98,22 @@ const finishTrick = (
       northSouth: currentTricksWon.northSouth + (winningPositionIndex + 1) % 2, // if position index is even, +1 NS trick
       eastWest: currentTricksWon.eastWest + winningPositionIndex % 2, // if position index is odd, +1 EW trick
     }
-  });
+  };
+
+  setState(currentGameState);
 
   //Check if end of hand
-  const allHandsEmpty = state.hands.South.length === 0;
+  const allHandsEmpty = currentGameState.hands.South.length === 0;
   if (allHandsEmpty) {
-    const scoringResults = calculateScore(state);
-    const currentGameState = state;
+    const scoringResults = calculateScore(currentGameState);
+    currentGameState.score = scoringResults.newScore;
+    currentGameState.vulnerability = scoringResults.newVulnerability;
     setState({
       ...currentGameState,
-      score: scoringResults.newScore,
-      vulnerability: scoringResults.newVulnerability,
       phase: 'cleanup',
     });
     setTimeout(() => {
-      scoringResults.gameEnd ? newGame(setState) : newHand(state, setState);
+      scoringResults.gameEnd ? newGame(setState) : newHand(currentGameState, setState);
     }, 5000);
   }
 };
