@@ -5,6 +5,9 @@ export const BID_LEVELS = [1, 2, 3, 4, 5, 6, 7];
 export const BID_STRAINS = ['♣', '♦', '♥', '♠', 'NT'];
 export const PLAYER = 'South';
 
+export type Position = 'South'| 'West'| 'North'| 'East';
+export type Suit = '♠'|'♥'|'♦'|'♣';
+
 export interface Card {
   suit: Suit;
   rank: string;
@@ -20,8 +23,16 @@ export interface Contract extends Bid {
   redoubled: boolean;
 }
 
-export type Position = 'South'| 'West'| 'North'| 'East';
-export type Suit = '♠'|'♥'|'♦'|'♣';
+export interface HandEvaluation {
+  hcp: number;
+  distribution: number[];  // [spades, hearts, clubs, diamonds]
+  distributionPoints: number;
+  longestSuit: Suit;
+  longestSuitLength: number;
+  secondLongestLength: number;
+  isBalanced: boolean;
+  suits: Card[][];
+}
 
 export interface GameState {
   phase: 'bidding' | 'play' | 'cleanup';

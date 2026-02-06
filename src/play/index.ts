@@ -1,6 +1,7 @@
-import { RANKS, PLAYER, POSITIONS, BID_STRAINS } from '../types';
+import { PLAYER, POSITIONS, BID_STRAINS } from '../types';
 import type { Position, Card, GameState } from '../types';
 import { newGame, newHand } from '../deck';
+import smartAutoPlay, { getWinningPosition } from './autoPlay';
 
 export const getNextPlayer = (position: Position) => POSITIONS[(POSITIONS.indexOf(position) + 1) % 4];
 
@@ -55,25 +56,18 @@ export function autoPlay (state: GameState, setState: Function) {
   if (playingPosition === PLAYER || (isDummyPlayable && playingPosition === 'North')) {
     return'';
   }
+
   const currentTrick = state.currentTrick;
   // if trick is full, do nothing
   if (currentTrick.length === 4) {
     return '';
   }
+
   const currentHand = state.hands[playingPosition];
-  if (currentTrick.length !== 0) { // must play lead suit if able
-    const leadSuit = currentTrick[0].suit;
-    const validCards = currentHand.filter(c => c.suit === leadSuit);
-    if (validCards.length !== 0) { //can play on lead suit
-      playCard(state, setState, validCards[0]);
-      return '';
-    }
-    // cant play lead suit, play last card
-    playCard(state, setState, currentHand[currentHand.length - 1]);
-    return '';
-  }
-  //playing first card in trick
-  playCard(state, setState, currentHand[0]);
+  const trump = state.currentBid.value.slice(-1);
+  const cardToPlay = smartAutoPlay(currentTrick, currentHand, trump);
+
+  playCard(state, setState, cardToPlay);
   return'';
 }
 
@@ -90,27 +84,7 @@ const finishTrick = (
 ) => {
   const trump = state.currentBid.value.slice(-1);
   const leadPosition = getNextPlayer(state.activePlayer);
-  const leadSuit = finishedTrick[0].suit;
-  let winnerIndex = 0;
-  let winner = finishedTrick[winnerIndex];
-
-  for (let i = 1; i < finishedTrick.length; i++) {
-    const current = finishedTrick[i];
-
-    if (current.suit === trump && winner.suit !== trump) {
-      winner = current;
-      winnerIndex = i;
-    } else if (current.suit === winner.suit) {
-      if (RANKS.indexOf(current.rank) > RANKS.indexOf(winner.rank)) {
-        winner = current;
-        winnerIndex = i;
-      }
-    } else if (winner.suit !== trump && current.suit === leadSuit && winner.suit !== leadSuit) {
-      winner = current;
-      winnerIndex = i;
-    }
-  }
-
+  const winnerIndex = getWinningPosition(finishedTrick, trump);
   const winningPositionIndex = (POSITIONS.indexOf(leadPosition) + winnerIndex) % 4;
   const winningPosition = POSITIONS[winningPositionIndex];
   const currentTricksWon = state.tricksWon;

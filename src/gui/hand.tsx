@@ -1,7 +1,7 @@
 import { PLAYER, SUITS } from '../types';
 import type { Card, GameState, Position } from '../types';
 import { playCard } from '../play';
-
+import { calculateHCP } from '../bidding/autoBid';
 export default function renderHand (state: GameState, setState: Function, position: Position, isVertical = false) {
   const hand = state.hands[position];
   const isDummyPlayer = state.dummy.position === position;
@@ -31,6 +31,9 @@ export default function renderHand (state: GameState, setState: Function, positi
 
     return (
       <div className="space-y-1">
+        <div key='handStrength' className="space-y-1">
+          {state.phase === 'bidding' && `High Card Points: ${calculateHCP(hand)}`}
+        </div>
         {rows.map((row, rowIdx) => (
           <div key={rowIdx} className="space-y-1">
             {row.map(({ suit, cards }) => {
