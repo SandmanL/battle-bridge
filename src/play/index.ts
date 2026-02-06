@@ -52,8 +52,8 @@ export const playCard = (state: GameState, setState: Function, playedCard: Card)
 export function autoPlay (state: GameState, setState: Function) {
   const isDummyPlayable = state.dummy.position === 'North';
   const playingPosition = state.activePlayer;
-  // if its the players turn and or player controlled dummy, do nothing
-  if (playingPosition === PLAYER || (isDummyPlayable && playingPosition === 'North')) {
+  // if its the player controlled dummy and its the player's or dummy's turn, do nothing
+  if (isDummyPlayable && (playingPosition === PLAYER || playingPosition === 'North')) {
     return'';
   }
 

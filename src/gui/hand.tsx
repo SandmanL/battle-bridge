@@ -48,7 +48,7 @@ export default function renderHand (state: GameState, setState: Function, positi
                     <button
                       key={i}
                       onClick={() => isCurrentPlayer && playCard(state, setState, card)}
-                      disabled={!isCurrentPlayer}
+                      disabled={!isCurrentPlayer || state.dummy.position === PLAYER}
                       className={`bg-white rounded px-1.5 py-0.5 shadow-sm text-xs ${
                         isCurrentPlayer ? 'hover:bg-yellow-100 cursor-pointer ring-1 ring-yellow-400' : 'cursor-not-allowed opacity-70'
                       }`}
