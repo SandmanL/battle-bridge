@@ -1,4 +1,4 @@
-import { RANKS, BID_STRAINS } from '../types';
+import { RANKS, BID_STRAINS, SUITS } from '../types';
 import type { Card } from '../types';
 
 /**
@@ -44,14 +44,16 @@ function selectLead(hand: Card[], trump: string): Card {
   const suitGroups = groupBySuit(hand);
 
   // Strategy: Lead from longest/strongest suit (avoid trump unless strong)
-  const nonTrumpSuits = Object.entries(suitGroups)
-    .filter(([suit]) => suit !== trump)
-    .sort((a, b) => b[1].length - a[1].length);
+  const nonTrumpSuits = suitGroups.filter(suitCards =>
+    suitCards.length > 0 && suitCards[0].suit !== trump
+  );
 
   if (nonTrumpSuits.length > 0) {
-    const cards = nonTrumpSuits[0][1];
+    const suitLengths = nonTrumpSuits.map(s => s.length);
+    const longestSuitIndex = suitLengths.indexOf(Math.max(...suitLengths));
+    const longestSuit = nonTrumpSuits[longestSuitIndex];
     // Lead top of sequence or 4th best from long suits
-    return selectLeadFromSuit(cards);
+    return selectLeadFromSuit(longestSuit);
   }
 
   // Only have trump, lead lowest
@@ -133,10 +135,11 @@ function selectDiscardOrTrump(
 function selectDiscard(hand: Card[]): Card {
   // Discard from longest suit, lowest card
   const suitGroups = groupBySuit(hand);
-  const longestSuit = Object.entries(suitGroups)
-    .sort((a, b) => b[1].length - a[1].length)[0];
+  const suitLengths = suitGroups.map(s => s.length);
+  const longestSuitIndex = suitLengths.indexOf(Math.max(...suitLengths));
+  const longestSuit = suitGroups[longestSuitIndex];
 
-  return getLowestCard(longestSuit[1]);
+  return getLowestCard(longestSuit);
 }
 
 /**
@@ -166,12 +169,11 @@ function selectLeadFromSuit(cards: Card[]): Card {
 // Utility Functions
 // ============================================================================
 
-function groupBySuit(cards: Card[]): Record<string, Card[]> {
-  return cards.reduce((acc, card) => {
-    if (!acc[card.suit]) acc[card.suit] = [];
-    acc[card.suit].push(card);
-    return acc;
-  }, {} as Record<string, Card[]>);
+function groupBySuit(hand: Card[]): Card[][] {
+  // Group by suit
+  const bySuit: Card[][] = [[], [], [], []]; // 2d array of cards, in Spade, heart, club, diamond order
+  hand.forEach(card => bySuit[SUITS.indexOf(card.suit)].push(card));
+  return bySuit;
 }
 
 function getHighestCard(cards: Card[]): Card {
