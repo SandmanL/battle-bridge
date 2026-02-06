@@ -94,8 +94,8 @@ export default function bidPhase (state: GameState, setState: Function){
       </div>
 
       <div className="bg-green-700 rounded-lg p-6">
-        <h3 className="text-white font-semibold mb-3 text-center">Your Hand ({state.activePlayer}):</h3>
-        {renderHand(state, setState, state.activePlayer, false)}
+        <h3 className="text-white font-semibold mb-3 text-center">Your Hand ({PLAYER}):</h3>
+        {renderHand(state, setState, PLAYER)}
       </div>
     </div>
   );

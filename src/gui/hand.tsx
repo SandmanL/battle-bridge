@@ -2,7 +2,8 @@ import { PLAYER, SUITS } from '../types';
 import type { Card, GameState, Position } from '../types';
 import { playCard } from '../play';
 import { calculateHCP } from '../bidding/autoBid';
-export default function renderHand (state: GameState, setState: Function, position: Position, isVertical = false) {
+
+export default function renderHand (state: GameState, setState: Function, position: Position) {
   const hand = state.hands[position];
   const isDummyPlayer = state.dummy.position === position;
   const isCurrentPlayer = state.activePlayer === position;
@@ -21,19 +22,16 @@ export default function renderHand (state: GameState, setState: Function, positi
   // Group by suit
   const bySuit: Card[][] = [[], [], [], []]; // 2d array of cards, in Spade, heart, club, diamond order
   hand.forEach(card => bySuit[SUITS.indexOf(card.suit)].push(card));
+  const rows = [
+    [{ suit: '♠', cards: bySuit[SUITS.indexOf('♠')] }, { suit: '♥', cards: bySuit[SUITS.indexOf('♥')] }],
+    [{ suit: '♦', cards: bySuit[SUITS.indexOf('♦')] }, { suit: '♣', cards: bySuit[SUITS.indexOf('♣')] }]
+  ];
 
-  if (isVertical) {
-    // For vertical (West/East), show 2 suits per row
-    const rows = [
-      [{ suit: '♠', cards: bySuit[SUITS.indexOf('♠')] }, { suit: '♥', cards: bySuit[SUITS.indexOf('♥')] }],
-      [{ suit: '♦', cards: bySuit[SUITS.indexOf('♦')] }, { suit: '♣', cards: bySuit[SUITS.indexOf('♣')] }]
-    ];
+  if (state.phase === 'bidding') {
 
     return (
       <div className="space-y-1">
-        <div key='handStrength' className="space-y-1">
-          {state.phase === 'bidding' && `High Card Points: ${calculateHCP(hand)}`}
-        </div>
+        <span className="text-white font-semibold mb-3 text-center">High Card Points: {calculateHCP(hand)}</span>
         {rows.map((row, rowIdx) => (
           <div key={rowIdx} className="space-y-1">
             {row.map(({ suit, cards }) => {
@@ -47,7 +45,7 @@ export default function renderHand (state: GameState, setState: Function, positi
                     {cards.map((card, i) => (
                       <button
                         key={i}
-                        onClick={() => isCurrentPlayer && playCard(state, setState, card)}
+                        onClick={() => isCurrentPlayer && state.phase === 'play' && playCard(state, setState, card)}
                         disabled={!isCurrentPlayer}
                         className={`bg-white rounded px-1.5 py-0.5 shadow-sm text-xs ${
                           isCurrentPlayer ? 'hover:bg-yellow-100 cursor-pointer' : 'cursor-not-allowed opacity-70'
@@ -67,12 +65,6 @@ export default function renderHand (state: GameState, setState: Function, positi
       </div>
     );
   }
-
-  // Horizontal display - show 2 suits per row
-  const rows = [
-    [{ suit: '♠', cards: bySuit[SUITS.indexOf('♠')] }, { suit: '♥', cards: bySuit[SUITS.indexOf('♥')] }],
-    [{ suit: '♦', cards: bySuit[SUITS.indexOf('♦')] }, { suit: '♣', cards: bySuit[SUITS.indexOf('♣')] }]
-  ];
 
   return (
     <div className="space-y-1">
