@@ -27,47 +27,13 @@ export default function renderHand (state: GameState, setState: Function, positi
     [{ suit: '♦', cards: bySuit[SUITS.indexOf('♦')] }, { suit: '♣', cards: bySuit[SUITS.indexOf('♣')] }]
   ];
 
-  if (state.phase === 'bidding') {
-
-    return (
-      <div className="space-y-1">
-        <span className="text-white font-semibold mb-3 text-center">High Card Points: {calculateHCP(hand)}</span>
-        {rows.map((row, rowIdx) => (
-          <div key={rowIdx} className="space-y-1">
-            {row.map(({ suit, cards }) => {
-              if (cards.length === 0) return null;
-              return (
-                <div key={suit} className="flex items-center gap-1">
-                  <span className={`text-base font-bold ${suit === '♥' || suit === '♦' ? 'text-red-600' : 'text-gray-800'}`}>
-                    {suit}
-                  </span>
-                  <div className="flex gap-0.5 flex-wrap">
-                    {cards.map((card, i) => (
-                      <button
-                        key={i}
-                        onClick={() => isCurrentPlayer && state.phase === 'play' && playCard(state, setState, card)}
-                        disabled={!isCurrentPlayer}
-                        className={`bg-white rounded px-1.5 py-0.5 shadow-sm text-xs ${
-                          isCurrentPlayer ? 'hover:bg-yellow-100 cursor-pointer' : 'cursor-not-allowed opacity-70'
-                        }`}
-                      >
-                        <span className={suit === '♥' || suit === '♦' ? 'text-red-600' : 'text-gray-800'}>
-                          {card.rank}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-1">
+    {state.phase === 'bidding' && (
+      <span className="text-white font-semibold mb-3 text-center">
+        High Card Points: {calculateHCP(hand)}
+      </span>
+    )}
       {rows.map((row, rowIdx) => (
         <div key={rowIdx} className="flex items-center justify-center gap-3">
           {row.map(({ suit, cards }) => {
