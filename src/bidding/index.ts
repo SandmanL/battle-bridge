@@ -115,13 +115,24 @@ const checkBiddingEnd = (state: GameState, setState: Function, allBids: Bid[]) =
   if (!lastThreeBids.every(bid => bid.value === 'Pass')) return; // last 3 bids have not been passes
 
   const winnerPosition = contractBid.position;
+  const winningSuit = contractBid.value.slice(1);
+
+  // Filter bids for bid Winning team
+  const teamBids = allBids.filter(bid =>
+    POSITIONS.indexOf(winnerPosition) % 2 === POSITIONS.indexOf(bid.position) % 2
+  );
+  // Filter team bids for bids in winning suit
+  const teamBidsInSuit = teamBids.filter(bid => winningSuit === bid.value.slice(1));
+  // The leading player becomes the next order player from the one that bid the winning suit first
+  const leadingPlayer = getNextPlayer(teamBidsInSuit[0].position);
+  const dummyPlayer = getNextPlayer(leadingPlayer);
 
   setState({
     ...currentGameState,
     phase: 'play',
-    activePlayer: getNextPlayer(winnerPosition),
+    activePlayer: leadingPlayer,
     dummy: {
-      position: POSITIONS[(POSITIONS.indexOf(winnerPosition) + 2) % 4],
+      position: dummyPlayer,
       visible: false,
     }
   });
