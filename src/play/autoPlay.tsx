@@ -21,18 +21,17 @@ export default function smartAutoPlay(
   }
 
   const leadSuit = trick[0].suit;
-  const position = trick.length; // 0=lead, 1=second, 2=third, 3=fourth
 
   // Check if we can follow suit
   const suitCards = hand.filter(c => c.suit === leadSuit);
 
   if (suitCards.length > 0) {
     // We must follow suit
-    return selectFollowCard(trick, suitCards, trump, position);
+    return selectFollowCard(trick, suitCards, trump);
   }
 
   // We're void in the lead suit - can trump or discard
-  return selectDiscardOrTrump(trick, hand, trump, position);
+  return selectDiscardOrTrump(trick, hand, trump);
 }
 
 /**
@@ -67,21 +66,20 @@ function selectFollowCard(
   trick: Card[],
   suitCards: Card[],
   trump: string,
-  position: number
 ): Card {
 
-  const partnerWinning = isPartnerWinning(trick, trump, position);
+  const partnerWinning = isPartnerWinning(trick, trump);
   const highestInTrick = getHighestCard(trick.filter(c => c.suit === trick[0].suit));
 
   if (!partnerWinning){
     const winningCard = findLowestWinningCard(suitCards, highestInTrick);
     // Third hand high (try to win if partner hasn't already won)
-    if (position === 2) {
+    if (trick.length === 2) {
       // Try to win the trick
       return winningCard || getHighestCard(suitCards);
     }
     // Fourth hand - we see all cards, make optimal decision
-    if (position === 3) {
+    if (trick.length === 3) {
       // Try to win if possible
       return winningCard ? winningCard : getLowestCard(suitCards);
     }
@@ -97,16 +95,17 @@ function selectDiscardOrTrump(
   trick: Card[],
   hand: Card[],
   trump: string,
-  position: number
 ): Card {
   const trumpSuit = BID_STRAINS.indexOf(trump); // -1 is no trump
-  const partnerWinning = isPartnerWinning(trick, trump, position);
+  const partnerWinning = isPartnerWinning(trick, trump);
   const nonTrumpCards = hand.filter(c => c.suit !== trump);
 
-  if (trumpSuit < 0 || partnerWinning) {
-    // No-trump contract, discard lowest from longest/weakest suit
-    // Partner is winning, don't waste a trump
-    return selectDiscard(nonTrumpCards);
+  if (partnerWinning) {
+    // Partner is winning, don't waste a trump if trump if you have other cards
+    if (trumpSuit >= 0 && nonTrumpCards.length !== 0) {
+      return selectDiscard(nonTrumpCards);
+    }
+    return selectDiscard(hand);
   }
 
   // Check if trick has been trumped already
@@ -117,7 +116,9 @@ function selectDiscardOrTrump(
     const highestTrumpInTrick = getHighestCard(trick.filter(c => c.suit === trump));
     const winningTrump = findLowestWinningCard(trumpCards, highestTrumpInTrick);
 
-    return winningTrump ? winningTrump : selectDiscard(nonTrumpCards);
+    if (winningTrump) return winningTrump;
+
+    return nonTrumpCards.length === 0 ? selectDiscard(hand) : selectDiscard(nonTrumpCards);
   }
 
   // Trick not yet trumped, use our lowest trump
@@ -133,6 +134,9 @@ function selectDiscardOrTrump(
  * Select a card to discard (when void and not trumping)
  */
 function selectDiscard(hand: Card[]): Card {
+  if (hand.length === 0) {
+    throw new Error('Cannot select discard from empty array');
+  }
   // Discard from longest suit, lowest card
   const suitGroups = groupBySuit(hand);
   const suitLengths = suitGroups.map(s => s.length);
@@ -177,15 +181,17 @@ function groupBySuit(hand: Card[]): Card[][] {
 }
 
 function getHighestCard(cards: Card[]): Card {
-  return cards.reduce((highest, card) =>
-    compareRank(card.rank, highest.rank) > 0 ? card : highest
-  );
+  const cardIndexes = cards.map(c => RANKS.indexOf(c.rank));
+  const highestIndex = Math.max(...cardIndexes);
+  const highestCard = cards[cardIndexes.indexOf(highestIndex)];
+  return highestCard;
 }
 
 function getLowestCard(cards: Card[]): Card {
-  return cards.reduce((lowest, card) =>
-    compareRank(card.rank, lowest.rank) < 0 ? card : lowest
-  );
+  const cardIndexes = cards.map(c => RANKS.indexOf(c.rank));
+  const lowestIndex = Math.min(...cardIndexes);
+  const lowestCard = cards[cardIndexes.indexOf(lowestIndex)];
+  return lowestCard;
 }
 
 function findLowestWinningCard(hand: Card[], cardToBeat: Card): Card | null {
@@ -196,12 +202,13 @@ function findLowestWinningCard(hand: Card[], cardToBeat: Card): Card | null {
 function compareRank(rank1: string, rank2: string): number {
   return RANKS.indexOf(rank1) - RANKS.indexOf(rank2);
 }
-//uses position in trick, not nsew position
-function isPartnerWinning(trick: Card[], trump: string, position: number): boolean {
-  if (trick.length === 0) return false;
+//uses position in trick (aka trick.length)
+function isPartnerWinning(trick: Card[], trump: string): boolean {
+  // False when playing first or second in trick
+  if (trick.length < 2) return false;
 
   // In bridge: positions 0 & 2 are partners, 1 & 3 are partners
-  const partnerPositions = position % 2 === 0 ? [0, 2] : [1, 3];
+  const partnerPositions = trick.length % 2 === 0 ? [0, 2] : [1, 3];
   const currentWinningPosition = getWinningPosition(trick, trump);
 
   // Check if a partner position is currently winning

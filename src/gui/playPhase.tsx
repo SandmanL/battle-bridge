@@ -72,7 +72,7 @@ export default function playPhase (state: GameState, setState: Function){
           <div className="text-white font-semibold mb-2 text-center text-sm">
             {'North'} {dummy === 'North' && '(Dummy)'}
           </div>
-          {renderHand(state, setState, 'North', false)}
+          {renderHand(state, setState, 'North')}
         </div>
 
         {/* West */}
@@ -80,7 +80,7 @@ export default function playPhase (state: GameState, setState: Function){
           <div className="text-white font-semibold mb-2 text-sm">
             {'West'} {dummy === 'West' && '(Dummy)'}
           </div>
-          {renderHand(state, setState, 'West', true)}
+          {renderHand(state, setState, 'West')}
         </div>
 
         {/* East */}
@@ -88,7 +88,7 @@ export default function playPhase (state: GameState, setState: Function){
           <div className="text-white font-semibold mb-2 text-sm">
             {'East'} {dummy === 'East' && '(Dummy)'}
           </div>
-          {renderHand(state, setState, 'East', true)}
+          {renderHand(state, setState, 'East')}
         </div>
 
         {/* South */}
@@ -96,7 +96,7 @@ export default function playPhase (state: GameState, setState: Function){
           <div className="text-white font-semibold mb-2 text-center text-sm">
             {'South'} {dummy === 'South' && '(Dummy)'}
           </div>
-          {renderHand(state, setState, 'South', false)}
+          {renderHand(state, setState, 'South')}
         </div>
       </div>
     </div>

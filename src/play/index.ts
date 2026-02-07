@@ -50,10 +50,14 @@ export const playCard = (state: GameState, setState: Function, playedCard: Card)
 };
 
 export function autoPlay (state: GameState, setState: Function) {
-  const isDummyPlayable = state.dummy.position === 'North';
+  const isDummyPlayable = state.dummy.position === POSITIONS[(POSITIONS.indexOf(PLAYER) + 2) % 4];
   const playingPosition = state.activePlayer;
-  // if its the player controlled dummy and its the player's or dummy's turn, do nothing
-  if (isDummyPlayable && (playingPosition === PLAYER || playingPosition === 'North')) {
+  // if its the player's turn and the player is not dummy
+  if (playingPosition === PLAYER && state.dummy.position !== PLAYER) {
+    return '';
+  }
+  // if its the player controlled dummy and dummy's turn, do nothing
+  if (isDummyPlayable && playingPosition === state.dummy.position) {
     return'';
   }
 
@@ -134,26 +138,27 @@ const calculateScore = (state: GameState) => {
   const updatedVulnerability = state.vulnerability;
   const vulnerable = updatedVulnerability[contractTeam];
   const currentScore = state.score;
-  let pointsOverUnder = [0, 0]; //[points over the line, points under the line]
+  let pointsOverLine = 0;
+  let pointsUnderLine = 0; //[points over the line, points under the line]
 
   // display score as overLine/firstGame/secondGame/ThirdGame
 
   if (overtricks >= 0) { // team made their contract
 
     if (contractSuitIndex < 0) { //invalid Bid suit
-      console.log('contract suit not found', contractSuitIndex);
+      console.warn('Invalid bid suit');
       return {newScore: state.score, newVulnerability: state.vulnerability, gameEnd: true};
     } else {
       const extraNTPoints = contractSuitIndex === 4 ? 10 : 0; //extra 10 points if 'NT' bid
       const trickWorth = contractSuitIndex < 2 ? 20 : 30; //BIDSUITS = [club,diamond,heart,spade,nt]
-      pointsOverUnder[1] += (contractLevel * trickWorth + extraNTPoints) * dblMultiplier; //adding to points under line
-      pointsOverUnder[0] += overtricks * trickWorth * dblMultiplier; // adding to points over line
+      pointsUnderLine += (contractLevel * trickWorth + extraNTPoints) * dblMultiplier; //adding to points under line
+      pointsOverLine += overtricks * trickWorth * dblMultiplier; // adding to points over line
     }
 
     //Adding points to winning team's score
-    const updatedTeamScore = currentScore[contractTeam];
-    updatedTeamScore[0] += pointsOverUnder[0];
-    updatedTeamScore[updatedTeamScore.length - 1] += pointsOverUnder[1];
+    const updatedTeamScore = [...currentScore[contractTeam]];
+    updatedTeamScore[0] += pointsOverLine;
+    updatedTeamScore[updatedTeamScore.length - 1] += pointsUnderLine;
     const updatedScore = {
       northSouth: contractPositionIndex % 2 === 0 ? updatedTeamScore : currentScore.northSouth,
       eastWest: contractPositionIndex % 2 === 1 ? updatedTeamScore : currentScore.eastWest
@@ -175,7 +180,7 @@ const calculateScore = (state: GameState) => {
   // team got set
   const setAmount = Math.abs(overtricks);
   const setPoints = setAmount * 50 * dblMultiplier * (vulnerable ? 2 : 1);
-  const updatedTeamScore = currentScore[defendingTeam];
+  const updatedTeamScore = [...currentScore[defendingTeam]];
   updatedTeamScore[0] += setPoints;
   const updatedScore = {
     northSouth: contractPositionIndex % 2 === 1 ? updatedTeamScore : currentScore.northSouth,
