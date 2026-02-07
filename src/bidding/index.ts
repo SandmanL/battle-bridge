@@ -1,11 +1,12 @@
-import { BID_STRAINS, PLAYER, POSITIONS, SUITS } from '../types';
-import type { Bid, Card, Contract, GameState } from '../types';
+import { BID_STRAINS, PLAYER, POSITIONS } from '../types';
+import type { Bid, Contract, GameState } from '../types';
 import { newHand } from '../deck';
 import { getNextPlayer } from '../play';
+import smartAutoBid from './autoBid';
 
 export const canDouble = (state: GameState) => {
-  //cant double if alreaady doubled
-  if (state.currentBid.doubled) return false;
+  //cant double if alreaady doubled or there isn't a bid to double
+  if (state.currentBid.doubled || state.currentBid.value === 'None') return false;
   //only opposing team can double
   const currentBidWinner = state.currentBid.position;
   const bidWinningTeam = POSITIONS.indexOf(currentBidWinner) % 2;
@@ -68,26 +69,13 @@ export function autoBid (state: GameState, setState: Function) {
   if (playingPosition === PLAYER) {
     return'';
   }
-  const activeHand = state.hands[playingPosition];
-  // Group by suit
-  const bySuit: Card[][] = [[], [], [], []]; // 2d array of cards, in Spade, heart, club, diamond order
-  activeHand.forEach(card => bySuit[SUITS.indexOf(card.suit)].push(card));
-  const suitLenghts = bySuit.map(set => set.length);
-  const longestSuit = bySuit[suitLenghts.indexOf(Math.max(...suitLenghts))];
-  const bidSuit = longestSuit[0].suit;
-  const maxBidLevel = longestSuit.length - 4;
-  // bid if longest suit >= 5 and up to suit.length - 4
-  if (maxBidLevel < 1) {
-    bidOrPass(state, setState, 'Pass');
-    return '';
-  }
 
-  if (isValidBid(state.currentBid, maxBidLevel, bidSuit)) {
-    bidOrPass(state, setState, `${maxBidLevel}${bidSuit}`);
-  } else {
-    bidOrPass(state, setState, 'Pass');
-  }
-  return'';
+  const activeHand = state.hands[playingPosition];
+  const bidHistory = state.bids;
+  const contract = state.currentBid;
+  const autoBidString = smartAutoBid(activeHand, bidHistory, contract, playingPosition);
+  bidOrPass(state, setState, autoBidString);
+  return '';
 }
 
 export const double = (state: GameState, setState: Function) => {
@@ -127,13 +115,24 @@ const checkBiddingEnd = (state: GameState, setState: Function, allBids: Bid[]) =
   if (!lastThreeBids.every(bid => bid.value === 'Pass')) return; // last 3 bids have not been passes
 
   const winnerPosition = contractBid.position;
+  const winningSuit = contractBid.value.slice(1);
+
+  // Filter bids for bid Winning team
+  const teamBids = allBids.filter(bid =>
+    POSITIONS.indexOf(winnerPosition) % 2 === POSITIONS.indexOf(bid.position) % 2
+  );
+  // Filter team bids for bids in winning suit
+  const teamBidsInSuit = teamBids.filter(bid => winningSuit === bid.value.slice(1));
+  // The leading player becomes the next order player from the one that bid the winning suit first
+  const leadingPlayer = getNextPlayer(teamBidsInSuit[0].position);
+  const dummyPlayer = getNextPlayer(leadingPlayer);
 
   setState({
     ...currentGameState,
     phase: 'play',
-    activePlayer: getNextPlayer(winnerPosition),
+    activePlayer: leadingPlayer,
     dummy: {
-      position: POSITIONS[(POSITIONS.indexOf(winnerPosition) + 2) % 4],
+      position: dummyPlayer,
       visible: false,
     }
   });

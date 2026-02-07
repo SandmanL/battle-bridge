@@ -1,6 +1,7 @@
-import { RANKS, PLAYER, POSITIONS, BID_STRAINS } from '../types';
+import { PLAYER, POSITIONS, BID_STRAINS } from '../types';
 import type { Position, Card, GameState } from '../types';
 import { newGame, newHand } from '../deck';
+import smartAutoPlay, { getWinningPosition } from './autoPlay';
 
 export const getNextPlayer = (position: Position) => POSITIONS[(POSITIONS.indexOf(position) + 1) % 4];
 
@@ -49,31 +50,28 @@ export const playCard = (state: GameState, setState: Function, playedCard: Card)
 };
 
 export function autoPlay (state: GameState, setState: Function) {
-  const isDummyPlayable = state.dummy.position === 'North';
+  const isDummyPlayable = state.dummy.position === POSITIONS[(POSITIONS.indexOf(PLAYER) + 2) % 4];
   const playingPosition = state.activePlayer;
-  // if its the players turn and or player controlled dummy, do nothing
-  if (playingPosition === PLAYER || (isDummyPlayable && playingPosition === 'North')) {
+  // if its the player's turn and the player is not dummy
+  if (playingPosition === PLAYER && state.dummy.position !== PLAYER) {
+    return '';
+  }
+  // if its the player controlled dummy and dummy's turn, do nothing
+  if (isDummyPlayable && playingPosition === state.dummy.position) {
     return'';
   }
+
   const currentTrick = state.currentTrick;
   // if trick is full, do nothing
   if (currentTrick.length === 4) {
     return '';
   }
+
   const currentHand = state.hands[playingPosition];
-  if (currentTrick.length !== 0) { // must play lead suit if able
-    const leadSuit = currentTrick[0].suit;
-    const validCards = currentHand.filter(c => c.suit === leadSuit);
-    if (validCards.length !== 0) { //can play on lead suit
-      playCard(state, setState, validCards[0]);
-      return '';
-    }
-    // cant play lead suit, play last card
-    playCard(state, setState, currentHand[currentHand.length - 1]);
-    return '';
-  }
-  //playing first card in trick
-  playCard(state, setState, currentHand[0]);
+  const trump = state.currentBid.value.slice(-1);
+  const cardToPlay = smartAutoPlay(currentTrick, currentHand, trump);
+
+  playCard(state, setState, cardToPlay);
   return'';
 }
 
@@ -90,27 +88,7 @@ const finishTrick = (
 ) => {
   const trump = state.currentBid.value.slice(-1);
   const leadPosition = getNextPlayer(state.activePlayer);
-  const leadSuit = finishedTrick[0].suit;
-  let winnerIndex = 0;
-  let winner = finishedTrick[winnerIndex];
-
-  for (let i = 1; i < finishedTrick.length; i++) {
-    const current = finishedTrick[i];
-
-    if (current.suit === trump && winner.suit !== trump) {
-      winner = current;
-      winnerIndex = i;
-    } else if (current.suit === winner.suit) {
-      if (RANKS.indexOf(current.rank) > RANKS.indexOf(winner.rank)) {
-        winner = current;
-        winnerIndex = i;
-      }
-    } else if (winner.suit !== trump && current.suit === leadSuit && winner.suit !== leadSuit) {
-      winner = current;
-      winnerIndex = i;
-    }
-  }
-
+  const winnerIndex = getWinningPosition(finishedTrick, trump);
   const winningPositionIndex = (POSITIONS.indexOf(leadPosition) + winnerIndex) % 4;
   const winningPosition = POSITIONS[winningPositionIndex];
   const currentTricksWon = state.tricksWon;
@@ -160,26 +138,27 @@ const calculateScore = (state: GameState) => {
   const updatedVulnerability = state.vulnerability;
   const vulnerable = updatedVulnerability[contractTeam];
   const currentScore = state.score;
-  let pointsOverUnder = [0, 0]; //[points over the line, points under the line]
+  let pointsOverLine = 0;
+  let pointsUnderLine = 0; //[points over the line, points under the line]
 
   // display score as overLine/firstGame/secondGame/ThirdGame
 
   if (overtricks >= 0) { // team made their contract
 
     if (contractSuitIndex < 0) { //invalid Bid suit
-      console.log('contract suit not found', contractSuitIndex);
+      console.warn('Invalid bid suit');
       return {newScore: state.score, newVulnerability: state.vulnerability, gameEnd: true};
     } else {
       const extraNTPoints = contractSuitIndex === 4 ? 10 : 0; //extra 10 points if 'NT' bid
       const trickWorth = contractSuitIndex < 2 ? 20 : 30; //BIDSUITS = [club,diamond,heart,spade,nt]
-      pointsOverUnder[1] += (contractLevel * trickWorth + extraNTPoints) * dblMultiplier; //adding to points under line
-      pointsOverUnder[0] += overtricks * trickWorth * dblMultiplier; // adding to points over line
+      pointsUnderLine += (contractLevel * trickWorth + extraNTPoints) * dblMultiplier; //adding to points under line
+      pointsOverLine += overtricks * trickWorth * dblMultiplier; // adding to points over line
     }
 
     //Adding points to winning team's score
-    const updatedTeamScore = currentScore[contractTeam];
-    updatedTeamScore[0] += pointsOverUnder[0];
-    updatedTeamScore[updatedTeamScore.length - 1] += pointsOverUnder[1];
+    const updatedTeamScore = [...currentScore[contractTeam]];
+    updatedTeamScore[0] += pointsOverLine;
+    updatedTeamScore[updatedTeamScore.length - 1] += pointsUnderLine;
     const updatedScore = {
       northSouth: contractPositionIndex % 2 === 0 ? updatedTeamScore : currentScore.northSouth,
       eastWest: contractPositionIndex % 2 === 1 ? updatedTeamScore : currentScore.eastWest
@@ -201,7 +180,7 @@ const calculateScore = (state: GameState) => {
   // team got set
   const setAmount = Math.abs(overtricks);
   const setPoints = setAmount * 50 * dblMultiplier * (vulnerable ? 2 : 1);
-  const updatedTeamScore = currentScore[defendingTeam];
+  const updatedTeamScore = [...currentScore[defendingTeam]];
   updatedTeamScore[0] += setPoints;
   const updatedScore = {
     northSouth: contractPositionIndex % 2 === 1 ? updatedTeamScore : currentScore.northSouth,
