@@ -1,37 +1,41 @@
 import type { GameState } from '../types';
 import renderHand from './hand';
-import { autoPlay } from '../play';
+import { autoPlay, trickProgress } from '../play';
 
 export default function playPhase (state: GameState, setState: Function){
-  const contract = state.currentBid;
   const dummy = state.dummy.position;
   const currentTrick = state.currentTrick;
   const lastTrick = state.lastTrick;
   return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-lg shadow-lg p-4">
-        <div className="flex justify-between items-center">
+    <div>
+      {(() => {
+        setTimeout(() => {
+          autoPlay(state, setState);
+        }, 1000);
+        return'';
+      })()}
+
+      {trickProgress(state.tricksWon)}
+
+      <div className="north">
+          <span className="label">
+            {'North'} {dummy === 'North' && '(Dummy)'}
+          </span>
+          {renderHand(state, setState, 'North')}
+      </div>
+
+      <div className="middle-row">
+        <div className="west">
+          <span className="label">
+            {'West'} {dummy === 'West' && '(Dummy)'}
+          </span>
           <div>
-            <div>
-              {(() => {
-                setTimeout(() => {
-                  autoPlay(state, setState);
-                }, 1000);
-                return'';
-              })()}
-            </div>
-            <span className="font-semibold">Contract:</span> {contract.value}
-            {contract.redoubled && ' XX'}
-            {!contract.redoubled && contract.doubled && ' X'}
-            {' by '}{contract.position}
-          </div>
-          <div>
-            <span className="font-semibold">Tricks: </span>
-            NS: {state.tricksWon.northSouth} | EW: {state.tricksWon.eastWest}
+            {renderHand(state, setState, 'West')}
           </div>
         </div>
-        <div className="mt-2">
-          <span className="font-semibold">Current Player:</span> {state.activePlayer}
+        <div className="center-trick">
+          <span className="label">Current Trick</span><div className="mt-2">
+          <span className="font-semibold">On Play: {state.activePlayer}</span>
         </div>
         <div className="mt-2">
           {currentTrick.length > 0 && <span className="ml-4 font-semibold">Lead: {currentTrick[0].suit}</span>}
@@ -64,41 +68,24 @@ export default function playPhase (state: GameState, setState: Function){
             </div>
           </div>
         )}
-      </div>
-
-      <div className="relative bg-green-700 rounded-lg p-8" style={{ minHeight: '500px' }}>
-        {/* North */}
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2">
-          <div className="text-white font-semibold mb-2 text-center text-sm">
-            {'North'} {dummy === 'North' && '(Dummy)'}
-          </div>
-          {renderHand(state, setState, 'North')}
         </div>
-
-        {/* West */}
-        <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
-          <div className="text-white font-semibold mb-2 text-sm">
-            {'West'} {dummy === 'West' && '(Dummy)'}
-          </div>
-          {renderHand(state, setState, 'West')}
-        </div>
-
-        {/* East */}
-        <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
-          <div className="text-white font-semibold mb-2 text-sm">
+        <div className="east">
+          <span className="label">
             {'East'} {dummy === 'East' && '(Dummy)'}
+          </span>
+          <div>
+            {renderHand(state, setState, 'East')}
           </div>
-          {renderHand(state, setState, 'East')}
-        </div>
-
-        {/* South */}
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-          <div className="text-white font-semibold mb-2 text-center text-sm">
-            {'South'} {dummy === 'South' && '(Dummy)'}
-          </div>
-          {renderHand(state, setState, 'South')}
         </div>
       </div>
+
+      <div className="south">
+          <span className="label">
+            {'South'} {dummy === 'South' && '(Dummy)'}
+          </span>
+          {renderHand(state, setState, 'South')}
+      </div>
+
     </div>
   );
 }

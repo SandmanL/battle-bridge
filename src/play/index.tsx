@@ -4,6 +4,39 @@ import { newGame, newHand } from '../deck';
 import smartAutoPlay, { getWinningPosition } from './autoPlay';
 
 export const getNextPlayer = (position: Position) => POSITIONS[(POSITIONS.indexOf(position) + 1) % 4];
+export const trickProgress = (
+  tricksWon: {
+    northSouth: number;
+    eastWest: number;
+  }
+) => {
+
+  const NStricks = tricksWon.northSouth;
+  const EWtricks = tricksWon.eastWest;
+  const totalTricks = 13;
+  const trickArray: string[] = [];
+  //can use array.map to return divs
+
+
+  for(let i = 0; i < totalTricks; i++) {
+    if(i < NStricks) {
+      trickArray[i] = 'pip won';
+    } else if (i >= 13 - EWtricks){
+      trickArray[i] = 'pip lost';
+    } else {
+      trickArray[i] = 'pip open';
+    }
+  };
+
+  return (
+    <div className="progress-strip">
+      {trickArray.map((status, rowIdx) => (
+        <div key={rowIdx} className={status}></div>
+       ))}
+    </div>
+    );
+
+};
 
 export const playCard = (state: GameState, setState: Function, playedCard: Card) => {
   const currentHand = state.hands[state.activePlayer];

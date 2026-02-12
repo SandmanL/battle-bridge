@@ -29,11 +29,11 @@ export default function renderHand (state: GameState, setState: Function, positi
 
   return (
     <div className="space-y-1">
-    {state.phase === 'bidding' && (
-      <span className="text-white font-semibold mb-3 text-center">
-        High Card Points: {calculateHCP(hand)}
-      </span>
-    )}
+      {state.phase === 'bidding' && (
+        <span className="text-white font-semibold mb-3 text-center">
+          High Card Points: {calculateHCP(hand)}
+        </span>
+      )}
       {rows.map((row, rowIdx) => (
         <div key={rowIdx} className="flex items-center justify-center gap-3">
           {row.map(({ suit, cards }) => {
